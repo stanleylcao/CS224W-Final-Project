@@ -211,11 +211,15 @@ class Environment:
 
         self.field.update_field(self.pacman, self.ghosts)
 
+        # check if the ghosts have reached a square that has pacman on it
+        self.game_won = (self.field.graph.x.sum(dim=1) > 1).sum() > 0
+
+        # Must capture Pacman in a set number of moves
         if self.score <= self.LOSS_SCORE:
             self.game_over = True
 
-        if self.score >= self.WIN_SCORE:
-            self.game_won = True
+        # if self.score >= self.WIN_SCORE:
+        #     self.game_won = True
 
         return self.get_state(), reward, self.game_over or self.game_won, self.score
 
