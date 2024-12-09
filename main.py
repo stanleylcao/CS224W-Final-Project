@@ -1,6 +1,7 @@
 import torch
 from models.gcn import GCNModel
 from models.gat import GATModel
+from models.graphSAGE import GraphSAGEModel
 from game import Environment
 from dqn import DQN
 from config import config
@@ -15,6 +16,8 @@ def main():
         model = GCNModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
     elif config["gnn_type"] == "GAT":
         model = GATModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+    elif config["gnn_type"] == "GraphSAGE":
+        model = GraphSAGEModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
     else:
         raise ValueError(f"Unsupported GNN type: {config['gnn_type']}")
 
