@@ -1,243 +1,211 @@
 import torch
 from torch_geometric.data import Data
-
+from config import config
 
 class Field:
     """
-    This class is dedicated to representing the state of the game
+    Represents the state of the game as a graph.
     """
+    
+    def __init__(self):
+        self.num_pacman = config["num_pacman"]
+        self.num_ghosts = config["num_ghosts"]
+        self.pacman_idx_start = config["pacman_idx_start"]
+        self.ghosts_idx_start = config["ghosts_idx_start"]
+        self.pacman_spawn_pos = config["pacman_spawn_pos"]
+        self.ghosts_spawn_pos = config["ghosts_spawn_pos"]
 
-    def __init__(self, num_pacman=1, num_ghosts=2):
-        """
-        Initializes the board for pacman
-        """
-        self.num_pacman = num_pacman
-        self.pacman_idx_start = 0
-        # hardcoded position based on game mechanics
-        self.pacman_spawn_pos = [5]
-
-        self.num_ghosts = num_ghosts
-        self.ghosts_idx_start = 1
-        # hardcoded positions; extra positions if have more ghosts
-        self.ghosts_spawn_pos = [18, 20, 23, 21, 22]
-
-        edge_index = torch.tensor([[0, 1],
-                                   [0, 10],
-                                   [1, 2],
-                                   [2, 3],
-                                   [2, 17],
-                                   [3, 4],
-                                   [4, 5],
-                                   [5, 6],
-                                   [5, 19],
-                                   [6, 7],
-                                   [7, 8],
-                                   [8, 9],
-                                   [8, 11],
-                                   [9, 10],
-                                   [11, 12],
-                                   [12, 13],
-                                   [13, 14],
-                                   [14, 15],
-                                   [15, 16],
-                                   [16, 17],
-                                   [18, 19],
-                                   [18, 23],
-                                   [19, 20],
-                                   [19, 22],
-                                   [20, 21],
-                                   [21, 22],
-                                   [22, 23],], dtype=torch.long)
-
-        # add other direction to represent undirected graph
-        flipped_edges = edge_index.flip(dims=[1])
+        # Create the graph
+        edge_index = torch.tensor(config["edges"], dtype=torch.long)
+        flipped_edges = edge_index.flip(dims=[1])   # add other direction to represent undirected graph
         undirected_edge_index = torch.cat([edge_index, flipped_edges], dim=0)
 
-        x = torch.zeros(size=(torch.max(edge_index) + 1,
-                        self.num_pacman + self.num_ghosts), dtype=torch.float)
+        x = torch.zeros(
+            size=(torch.max(edge_index) + 1, self.num_pacman + self.num_ghosts), dtype=torch.float
+        )
 
-        # Set pacman spawn on graph attributes
+        # Initialize positions
         for i in range(self.num_pacman):
             x[self.pacman_spawn_pos[i], self.pacman_idx_start + i] = 1
-
-        # Set ghosts spawn on graph attributes
         for i in range(self.num_ghosts):
             x[self.ghosts_spawn_pos[i], self.ghosts_idx_start + i] = 1
 
-        self.graph = Data(
-            x=x, edge_index=undirected_edge_index.t().contiguous())
+        self.graph = Data(x=x, edge_index=undirected_edge_index.t().contiguous())
         self.graph.validate(raise_on_error=True)
 
-    def update_field(self, pacman, ghosts):
+    def update_field(self, pacman_positions, ghost_positions):
         """
-        Updates the graph attributes based on Pacman and Ghost objects. Fetches
-        the move from those objects.
+        Updates the graph attributes based on Pac-Man and Ghosts' positions.
         """
-        if pacman.action_vec is None or ghosts.action_vec is None:
-            return
-        # assert len(pacman.action_vec) == self.num_pacman
-        assert len(ghosts.action_vec) == self.num_ghosts
-        self.graph.x[:, :] = 0  # clear board
-        self.graph.x[pacman.action_vec, 0] = 1  # set new pacman position
-        # TODO: generalize
-        self.graph.x[ghosts.action_vec, torch.arange(  # set new ghost positions
-            self.num_ghosts) + self.ghosts_idx_start] = 1
+        self.graph.x[:, :] = 0  # Clear all positions
 
+        for i, pos in enumerate(pacman_positions):
+            self.graph.x[pos, i] = 1  # Update Pac-Man positions
 
-class Pacman:
+        for i, pos in enumerate(ghost_positions):
+            self.graph.x[pos, self.num_pacman + i] = 1  # Update Ghost positions
+
+class Agent:
     """
-    Class to encapsulate Pacman attributes
+    Base class for agents in the game (e.g., Pac-Man or Ghosts).
     """
 
-    def __init__(self, field=None):
+    def __init__(self, field, is_pacman=True):
         self.field = field
         self.graph = field.graph
         self.action_vec = None
+        self.is_pacman = is_pacman
+        self.num_agents = self.field.num_pacman if is_pacman else self.field.num_ghosts
+        self.idx_start = self.field.pacman_idx_start if is_pacman else self.field.ghosts_idx_start
 
     def get_action_set(self):
         """
-        Retrieves all possible actions for Pacman, which is just the neighbors
-        of the node
+        Retrieves all possible actions for the agent(s), which is the neighbors of the current node(s).
         """
         edge_index = self.graph.edge_index
         x = self.graph.x
-        pacman_neighbors = []
-        for i in range(self.field.num_pacman):
-            pos = (x[:, self.field.pacman_idx_start + i] == 1).nonzero().item()
-            mask = (edge_index[0, :] == pos)
-            neighbors = edge_index[1, mask]
-            pacman_neighbors.append(neighbors)
-        action_set = torch.cartesian_prod(*pacman_neighbors)
-        return action_set
+        neighbors = []
+
+        for i in range(self.num_agents):
+            pos = (x[:, self.idx_start + i] == 1).nonzero().item()
+            mask = edge_index[0] == pos
+            neighbors.append(edge_index[1, mask])
+
+        return torch.cartesian_prod(*neighbors)
 
     def set_action(self, action_vec):
         """
-        Sets the action, which will be read by the Field object to update the
-        game state 
-        """
-        self.action_vec = action_vec
-
-
-class Ghosts:
-    """
-    Class to encapsulate Ghost attributes
-    """
-
-    def __init__(self, field=None):
-        self.field = field
-        self.graph = field.graph
-        self.action_vec = None
-
-    def get_action_set(self):
-        """
-        Retrieves all possible actions for the Ghosts, which is the Cartesian
-        product of all neighbors of nodes where a ghost is present at
-        """
-        edge_index = self.graph.edge_index
-        x = self.graph.x
-        ghost_neighbors = []
-        for i in range(self.field.num_ghosts):
-            pos = (x[:, self.field.ghosts_idx_start + i] == 1).nonzero().item()
-            mask = (edge_index[0, :] == pos)
-            neighbors = edge_index[1, mask]
-            ghost_neighbors.append(neighbors)
-        action_set = torch.cartesian_prod(*ghost_neighbors)
-        return action_set
-
-    def set_action(self, action_vec):
-        """
-        Sets the action, which will be read by the Field object to update the
-        game state
+        Sets the action vector for the agent(s), which will be used to update the game state.
         """
         self.action_vec = action_vec
 
 
 class Environment:
     """
-    Class that encapsulates the environment
+    Represents the Pac-Man game environment and manages game interactions.
     """
-    # Hyperparameters
-    ACTION_SPACE = [0, 1, 2]
-    ACTION_SPACE_SIZE = len(ACTION_SPACE)
-    ACTION_SHAPE = (ACTION_SPACE_SIZE,)
-    PUNISHMENT = -1
-    REWARD = 1
-    score = 0
-    MAX_VAL = 2
 
-    LOSS_SCORE = -5
-    WIN_SCORE = 5
+    def __init__(self):
+        # Load settings from config
+        self.num_pacman = config["num_pacman"]
+        self.num_ghosts = config["num_ghosts"]
 
-    def __init__(self, num_pacman=1, num_ghosts=2):
-        self.num_pacman = num_pacman
-        self.num_ghosts = num_ghosts
-        self.reset()
+        # Initialize the field (game state graph)
+        self.field = Field()
 
-    def get_state(self):
-        return self.field.graph
+        # Initialize agents
+        self.pacman = Agent(self.field, is_pacman=True)
+        self.ghosts = Agent(self.field, is_pacman=False)
 
-    def reset(self):
+        # Game state variables
+        self.score = 0
         self.game_tick = 0
         self.game_over = False
         self.game_won = False
-        self.field = Field(num_pacman=self.num_pacman,
-                           num_ghosts=self.num_ghosts)
-        self.pacman = Pacman(self.field)
-        self.ghosts = Ghosts(self.field)
 
+    def reset(self):
+        """
+        Resets the environment to its initial state.
+        """
+        self.game_tick = 0
+        self.game_over = False
+        self.game_won = False
         self.score = 0
-        self.field.update_field(self.pacman, self.ghosts)
+
+        # Reset agent positions
+        self.pacman.set_action(self.pacman.field.pacman_spawn_pos)
+        self.ghosts.set_action(self.ghosts.field.ghosts_spawn_pos)
+
+        # Update the field to reflect initial positions
+        self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
 
         return self.get_state()
 
+    def get_state(self):
+        """
+        Returns the current state of the environment as a graph.
+        """
+        return self.field.graph
+
     def get_pacman_action_set(self):
+        """
+        Returns all valid actions for Pac-Man.
+        """
         return self.pacman.get_action_set()
 
     def get_ghost_action_set(self):
+        """
+        Returns all valid actions for Ghosts.
+        """
         return self.ghosts.get_action_set()
 
     def step(self, pacman_action_vec, ghost_action_vec):
         """
-        This runs every step of the game. The DQN can pass an action vector from
-        both pacman and the ghosts and in return, gets the next game state,
-        reward, etc.
+        Executes one step in the environment by updating agent positions.
+
+        Args:
+            pacman_action_vec (Tensor): Action vector for Pac-Man.
+            ghost_action_vec (Tensor): Action vector for Ghosts.
+
+        Returns:
+            state (Data): Updated game state graph.
+            reward (int): Reward for the step.
+            done (bool): Whether the game is over.
+            score (int): Current game score.
         """
+        # Increment game tick
         self.game_tick += 1
 
+        # Update agent positions
         self.pacman.set_action(pacman_action_vec)
         self.ghosts.set_action(ghost_action_vec)
 
-        reward = 0
+        # Update the field with new positions
+        self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
 
-        self.field.update_field(self.pacman, self.ghosts)
+        # Check for collisions (Pac-Man caught by any Ghost)
+        pacman_positions = set(self.pacman.action_vec.tolist())
+        ghost_positions = set(self.ghosts.action_vec.tolist())
 
-        # check if the ghosts have reached a square that has pacman on it
-        self.game_won = (self.field.graph.x.sum(dim=1) > 1).sum() > 0
+        if pacman_positions & ghost_positions:
+            self.game_won = True
+            reward = config["reward"]
+        else:
+            reward = config["punishment"]
 
-        # Must capture Pacman in a set number of moves
-        if self.score <= self.LOSS_SCORE:
+        # Check game-over conditions
+        if self.game_tick >= config["max_steps"] or self.score <= config["loss_score"]:
             self.game_over = True
 
-        # if self.score >= self.WIN_SCORE:
-        #     self.game_won = True
+        # Update score
+        self.update_score(reward)
 
         return self.get_state(), reward, self.game_over or self.game_won, self.score
 
     def update_score(self, delta):
+        """
+        Updates the game score.
+
+        Args:
+            delta (int): Change in score.
+        """
         self.score += delta
 
     def dump(self):
         """
-        Debugging function to print out the state of the game.
+        Prints the current game state for debugging purposes.
         """
+        print(f"Game Tick: {self.game_tick}")
+        print(f"Score: {self.score}")
+        print(f"Game Over: {self.game_over}")
+        print(f"Game Won: {self.game_won}")
         print(self.field.graph)
-        x = self.field.graph.x
+
         for i in range(self.num_pacman):
-            print(
-                f'Pacman #{i} POS = \t{(x[:, self.field.pacman_idx_start + i] == 1).nonzero().item()}')
+            print(f"Pacman #{i} Position: {self.pacman.action_vec[i]}")
+
         for i in range(self.num_ghosts):
-            print(
-                f'Ghost #{i} POS = \t{(x[:, self.field.ghosts_idx_start + i] == 1).nonzero().item()}')
+            print(f"Ghost #{i} Position: {self.ghosts.action_vec[i]}")
 
 
 def main():
