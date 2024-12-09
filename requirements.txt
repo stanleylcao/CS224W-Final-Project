@@ -1,3 +1,6 @@
 torch
 torch-geometric
 tensorflow
+torch-scatter 
+torch-sparse 
+torch-cluster
