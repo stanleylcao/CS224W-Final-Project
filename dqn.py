@@ -1,7 +1,13 @@
+import numpy as np
+import copy
+import tensorflow as tf
+import random
+from replay_buffer import PrioritizedReplayBuffer
+import torch
 
 
 class DQN:
-    def __init__(self, state_shape, action_size, learning_rate_max=0.001, learning_rate_decay=0.995, gamma=0.75,
+    def __init__(self, state_shape, action_size, model, learning_rate_max=0.001, learning_rate_decay=0.995, gamma=0.75,
                  memory_size=2000, batch_size=32, exploration_max=1.0, exploration_min=0.01, exploration_decay=0.995):
         self.state_shape = state_shape
         self.state_tensor_shape = (-1,) + state_shape
@@ -18,42 +24,44 @@ class DQN:
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
 
-        self.model = self._build_model()
-        self.target_model = self._build_model()
+        self.model = model
+        self.target_model = copy.deepcopy(self.model)  # Clone the model for the target network
         self.update_target_model()
 
-    def _build_model(self):
-        # the actual neural network structure
-        model = tf.keras.models.Sequential()
-        model.add(tf.keras.layers.Input(shape=self.state_shape))
-        model.add(tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding='same',
-                  kernel_initializer='he_uniform', input_shape=self.state_shape))
-        model.add(tf.keras.layers.Conv2D(64, (3, 3), activation='relu',
-                  padding='same', kernel_initializer='he_uniform'))
-        model.add(tf.keras.layers.Flatten())
-        model.add(tf.keras.layers.Dense(
-            128, activation='relu', kernel_initializer='he_uniform'))
-        model.add(tf.keras.layers.Dense(
-            128, activation='relu', kernel_initializer='he_uniform'))
-        model.add(tf.keras.layers.Dropout(0.1))
-        model.add(tf.keras.layers.Dense(self.action_size, activation='linear',
-                  name='action_values', kernel_initializer='he_uniform'))
-        model.compile(loss='mse', optimizer=tf.keras.optimizers.Adam(
-            learning_rate=self.learning_rate))
-        return model
-
     def update_target_model(self):
-        self.target_model.set_weights(self.model.get_weights())
+        self.target_model.load_state_dict(self.model.state_dict())
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.push((state, action, reward, next_state, done))
 
-    def act(self, state, epsilon=None):
-        if epsilon == None:
-            epsilon = self.exploration_rate
+    def act(self, node_features, edge_index, epsilon=None):
+        """
+        Selects an action based on the current policy or explores randomly.
+
+        Args:
+            node_features (Tensor): Node features of the graph (state representation).
+            edge_index (Tensor): Edge index of the graph.
+            epsilon (float, optional): Exploration rate. If None, uses self.exploration_rate.
+
+        Returns:
+            int: Selected action.
+        """
+        if epsilon is None:
+            epsilon = self.exploration_rate  # Default to exploration rate
+
+        # Ensure epsilon is a scalar (convert tensor to float if necessary)
+        if isinstance(epsilon, torch.Tensor):
+            epsilon = epsilon.item()
+
+        # Exploration: Random action
         if np.random.rand() < epsilon:
             return random.randrange(self.action_size)
-        return np.argmax(self.target_model.predict(state, verbose=0)[0])
+
+        # Exploitation: Select action with highest Q-value
+        with torch.no_grad():
+            q_values = self.model(node_features, edge_index)  # Forward pass through the model
+            return torch.argmax(q_values, dim=1).item()  # Return the action with the highest Q-value
+
 
     def replay(self, episode=0):
 
