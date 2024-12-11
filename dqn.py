@@ -1,17 +1,20 @@
 import numpy as np
 import copy
-import tensorflow as tf
 import random
 from replay_buffer import PrioritizedReplayBuffer
 import torch
+
+from torch_geometric.data import Data
+
+from game import Environment
 
 
 class DQN:
     def __init__(self, state_shape, action_size, model, learning_rate_max=0.001, learning_rate_decay=0.995, gamma=0.75,
                  memory_size=2000, batch_size=32, exploration_max=1.0, exploration_min=0.01, exploration_decay=0.995):
-        self.state_shape = state_shape
-        self.state_tensor_shape = (-1,) + state_shape
-        self.action_size = action_size
+        # self.state_shape = state_shape
+        # self.state_tensor_shape = (-1,) + state_shape
+        # self.action_size = action_size
         self.learning_rate_max = learning_rate_max
         self.learning_rate = learning_rate_max
         self.learning_rate_decay = learning_rate_decay
@@ -25,7 +28,8 @@ class DQN:
         self.exploration_decay = exploration_decay
 
         self.model = model
-        self.target_model = copy.deepcopy(self.model)  # Clone the model for the target network
+        # Clone the model for the target network
+        self.target_model = copy.deepcopy(self.model)
         self.update_target_model()
 
     def update_target_model(self):
@@ -34,34 +38,56 @@ class DQN:
     def remember(self, state, action, reward, next_state, done):
         self.memory.push((state, action, reward, next_state, done))
 
-    def act(self, node_features, edge_index, epsilon=None):
+    def act(self, env: Environment, epsilon=None):
         """
         Selects an action based on the current policy or explores randomly.
 
         Args:
-            node_features (Tensor): Node features of the graph (state representation).
-            edge_index (Tensor): Edge index of the graph.
+            data: torch_geometric data object that contains graph information
             epsilon (float, optional): Exploration rate. If None, uses self.exploration_rate.
-
         Returns:
             int: Selected action.
         """
-        if epsilon is None:
-            epsilon = self.exploration_rate  # Default to exploration rate
+        data = env.get_state()
+
+        node_features = data.x
+        edge_index = data.edge_index
+
+        # if epsilon is None:
+        #     epsilon = self.exploration_rate  # Default to exploration rate
 
         # Ensure epsilon is a scalar (convert tensor to float if necessary)
-        if isinstance(epsilon, torch.Tensor):
-            epsilon = epsilon.item()
+        # if isinstance(epsilon, torch.Tensor):
+        #     epsilon = epsilon.item()
 
         # Exploration: Random action
-        if np.random.rand() < epsilon:
-            return random.randrange(self.action_size)
+        # if np.random.rand() < epsilon:
+        #     return random.randrange(self.action_size)
 
         # Exploitation: Select action with highest Q-value
         with torch.no_grad():
-            q_values = self.model(node_features, edge_index)  # Forward pass through the model
-            return torch.argmax(q_values, dim=1).item()  # Return the action with the highest Q-value
+            # Forward pass through the model
+            self.model.eval()  # set model to eval mode
+            node_embs = self.model(node_features, edge_index)  # (V, out_d)
+            ghost_actions = env.get_ghost_action_set()
 
+            q_vals = 0
+            for i in range(env.num_ghosts):  # TODO: vectorize this?
+                cur_pos = env.ghosts.get_pos(i)
+                cur_pos_emb = node_embs[cur_pos,]  # (out_d,)
+                possible_next_pos = ghost_actions[:, i]
+                # (num_neighbors, out_d)
+                neighbor_embs = node_embs[possible_next_pos]
+
+                # Calculate q_vals
+                # TODO: this is the dot product. Realistically, this all should
+                # go in the model class, since we should be able to switch out
+                # dot product aggregation with weighted dot product
+                vals = torch.sum(cur_pos_emb * neighbor_embs,
+                                 dim=1)  # (num_neighbors,)
+                q_vals += vals
+            # Return the action with the highest Q-value
+            return torch.argmax(q_vals).item()
 
     def replay(self, episode=0):
 

@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn.conv import MessagePassing
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
+# from torch_scatter import scatter
 
 
 class GraphSAGE(MessagePassing):
@@ -11,7 +12,8 @@ class GraphSAGE(MessagePassing):
     """
 
     def __init__(self, in_channels, out_channels, normalize=True, bias=True, **kwargs):
-        super(GraphSAGE, self).__init__(aggr='mean', **kwargs)  # Aggregates messages using 'mean'
+        # Aggregates messages using 'mean'
+        super(GraphSAGE, self).__init__(aggr='mean', **kwargs)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -78,10 +80,12 @@ class GraphSAGEModel(nn.Module):
 
         # Build layers
         self.layers = nn.ModuleList()
-        self.layers.append(GraphSAGE(input_dim, hidden_dim, normalize=normalize))
+        self.layers.append(
+            GraphSAGE(input_dim, hidden_dim, normalize=normalize))
 
         for _ in range(num_layers - 1):
-            self.layers.append(GraphSAGE(hidden_dim, hidden_dim, normalize=normalize))
+            self.layers.append(
+                GraphSAGE(hidden_dim, hidden_dim, normalize=normalize))
 
         # Post-message-passing module
         self.post_mp = nn.Sequential(

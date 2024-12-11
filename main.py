@@ -9,15 +9,18 @@ from config import config
 
 def main():
     # --- Initialize Environment ---
-    env = Environment(num_pacman=config["num_pacman"], num_ghosts=config["num_ghosts"])
+    env = Environment()
 
     # --- Initialize GNN Model ---
     if config["gnn_type"] == "GCN":
-        model = GCNModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GCNModel(
+            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
     elif config["gnn_type"] == "GAT":
-        model = GATModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GATModel(
+            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
     elif config["gnn_type"] == "GraphSAGE":
-        model = GraphSAGEModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GraphSAGEModel(
+            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
     else:
         raise ValueError(f"Unsupported GNN type: {config['gnn_type']}")
 
@@ -49,16 +52,17 @@ def main():
 
         for step in range(config["max_steps"]):
             # Get graph data
-            state_graph = env.get_state()
-            node_features = state_graph.x.to(device)
-            edge_index = state_graph.edge_index.to(device)
+            # state_graph = env.get_state()
+            # node_features = state_graph.x.to(device)
+            # edge_index = state_graph.edge_index.to(device)
+
+            # Get random action for pacman
+            pacman_action_set = env.get_pacman_action_set()
+            pacman_action = pacman_action_set[torch.randint(
+                len(pacman_action_set), (1,))]
 
             # Choose an action using the DQN
-            action = dqn.act(node_features, edge_index)
-
-            # Convert action to environment-readable format
-            pacman_action = torch.tensor([action])  # Example for 1 Pac-Man
-            ghost_action = torch.tensor([action % env.num_ghosts])  # Example for ghosts
+            ghost_action = dqn.act(env)
 
             # Take a step in the environment
             next_state, reward, done, _ = env.step(pacman_action, ghost_action)
@@ -76,7 +80,8 @@ def main():
             if done:
                 break
 
-        print(f"Episode {episode + 1}/{config["num_episodes"]} - Total Reward: {total_reward}")
+        print(
+            f"Episode {episode + 1}/{config['num_episodes']} - Total Reward: {total_reward}")
 
         # Update target network periodically
         if episode % 10 == 0:
@@ -88,6 +93,7 @@ def main():
 
     # --- Evaluation ---
     # TO DO
+
 
 if __name__ == "__main__":
     main()

@@ -46,5 +46,6 @@ config = {
     "gnn_type": "GCN",  # Change to "GAT" for testing GATModel
     "input_dim": 3,
     "hidden_dim": 128,
+    # Note that this isn't the action set, but rather the final node embeddings
     "output_dim": 4,
 }

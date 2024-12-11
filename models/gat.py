@@ -1,10 +1,9 @@
 import torch
-import torch_scatter
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn.conv import MessagePassing
-from torch_geometric.utils import softmax
-from torch_scatter import scatter
+from torch_geometric.utils import softmax, scatter
+# from torch_scatter import scatter
 from typing import Optional, Tuple
 
 
@@ -62,7 +61,8 @@ class GAT(MessagePassing):
         alpha_r = (x_r * self.att_r).sum(dim=-1)  # [num_nodes, heads]
 
         # Propagate attention scores and node embeddings
-        out = self.propagate(edge_index, x=(x_l, x_r), alpha=(alpha_l, alpha_r), size=size)
+        out = self.propagate(edge_index, x=(x_l, x_r),
+                             alpha=(alpha_l, alpha_r), size=size)
 
         # Flatten multi-head outputs
         out = out.view(-1, H * C)
@@ -75,8 +75,10 @@ class GAT(MessagePassing):
         """
         # Compute attention weights
         alpha = F.leaky_relu(alpha_i + alpha_j, self.negative_slope)
-        alpha = softmax(alpha, index=index, ptr=ptr, num_nodes=size_i)  # Normalize attention scores
-        alpha = F.dropout(alpha, p=self.dropout, training=self.training)  # Apply dropout
+        # Normalize attention scores
+        alpha = softmax(alpha, index=index, ptr=ptr, num_nodes=size_i)
+        alpha = F.dropout(alpha, p=self.dropout,
+                          training=self.training)  # Apply dropout
 
         # Multiply attention weights with embeddings
         out = x_j * alpha.unsqueeze(-1)
@@ -101,10 +103,12 @@ class GATModel(nn.Module):
         assert num_layers >= 1, "GATModel requires at least one layer."
 
         self.layers = nn.ModuleList()
-        self.layers.append(GAT(input_dim, hidden_dim, heads=num_heads, dropout=dropout))
+        self.layers.append(
+            GAT(input_dim, hidden_dim, heads=num_heads, dropout=dropout))
 
         for _ in range(num_layers - 1):
-            self.layers.append(GAT(hidden_dim * num_heads, hidden_dim, heads=num_heads, dropout=dropout))
+            self.layers.append(
+                GAT(hidden_dim * num_heads, hidden_dim, heads=num_heads, dropout=dropout))
 
         self.post_mp = nn.Sequential(
             nn.Linear(hidden_dim * num_heads, hidden_dim),
