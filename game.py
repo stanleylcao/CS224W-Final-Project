@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import copy
 import random
+import numpy as np
 
 class Field:
     """
@@ -30,6 +31,9 @@ class Field:
             size=(torch.max(edge_index) + 1, self.num_pacman + self.num_ghosts), dtype=torch.float
         )
 
+        # Precompute distances between nodes in the graph
+        self.distance_matrix = self.precompute_distances(edge_index, config["num_nodes"])
+
         # Initialize positions
         for i in range(self.num_pacman):
             x[self.pacman_spawn_pos[i], self.pacman_idx_start + i] = 1
@@ -40,6 +44,35 @@ class Field:
             x=x, edge_index=undirected_edge_index.t().contiguous())
         self.graph.validate(raise_on_error=True)
 
+    def precompute_distances(self, edge_index, num_nodes):
+        """
+        Precomputes the shortest distances between all nodes using Floyd-Warshall.
+
+        Args:
+            edge_index (torch.Tensor): The edge list of the graph.
+            num_nodes (int): The total number of nodes in the graph.
+
+        Returns:
+            np.ndarray: A distance matrix with the shortest distances between nodes.
+        """
+        # Initialize distance matrix
+        distances = np.full((num_nodes, num_nodes), np.inf)
+        np.fill_diagonal(distances, 0)  # Distance to self is 0
+
+        # Populate direct distances
+        for edge in edge_index.tolist():
+            u, v = edge
+            distances[u][v] = 1  # Assuming all edges have weight 1
+            distances[v][u] = 1  # Undirected graph
+
+        # Floyd-Warshall Algorithm
+        for k in range(num_nodes):
+            for i in range(num_nodes):
+                for j in range(num_nodes):
+                    distances[i][j] = min(distances[i][j], distances[i][k] + distances[k][j])
+
+        return distances
+    
     def update_field(self, pacman_positions, ghost_positions):
         """
         Updates the graph attributes based on Pac-Man and Ghosts' positions.
@@ -96,6 +129,19 @@ class Agent:
         """
         self.action_vec = action_vec
 
+class RewardNormalizer:
+    def __init__(self, alpha=0.1):
+        self.mean = 0
+        self.var = 1
+        self.alpha = alpha  # Smoothing factor for running mean and variance
+
+    def normalize(self, reward):
+        # Update running mean and variance
+        self.mean = self.alpha * reward + (1 - self.alpha) * self.mean
+        self.var = self.alpha * (reward - self.mean) ** 2 + (1 - self.alpha) * self.var
+
+        # Normalize reward
+        return (reward - self.mean) / (self.var ** 0.5 + 1e-8)
 
 class Environment:
     """
@@ -113,6 +159,8 @@ class Environment:
         # Initialize agents
         self.pacman = Agent(self.field, is_pacman=True)
         self.ghosts = Agent(self.field, is_pacman=False)
+
+        self.reward_normalizer = RewardNormalizer()
 
         # Game state variables
         self.reset()
@@ -200,6 +248,65 @@ class Environment:
         """
         return self.ghosts.get_action_set(data)
 
+    def calculate_distance(self, pos1, pos2):
+        """
+        Returns the precomputed shortest distance between two nodes.
+
+        Args:
+            pos1 (int): Position of the first node.
+            pos2 (int): Position of the second node.
+
+        Returns:
+            int: Precomputed shortest distance between the two nodes.
+        """
+        return self.field.distance_matrix[pos1, pos2]
+
+    def calculate_reward(self, previous_pacman_positions, previous_ghost_positions, current_pacman_positions, current_ghost_positions):
+        """
+        Calculates the reward from the ghosts' perspective.
+        Each ghost is rewarded for moving closer to Pac-Man and penalized for moving away.
+
+        Args:
+            previous_pacman_positions (list): Previous positions of Pac-Man.
+            previous_ghost_positions (list): Previous positions of Ghosts.
+            current_pacman_positions (list): Current positions of Pac-Man.
+            current_ghost_positions (list): Current positions of Ghosts.
+
+        Returns:
+            float: Calculated reward for the ghosts' current actions.
+        """
+        reward = 0
+
+        # Penalty for each time step (to encourage faster gameplay)
+        reward += config["time_step_score"]
+
+        # Assuming one Pac-Man for simplicity
+        previous_pacman_position = previous_pacman_positions[0]
+        current_pacman_position = current_pacman_positions[0]
+
+        # Loop through each ghost
+        for ghost_idx, current_ghost_pos in enumerate(current_ghost_positions):
+            # Distance before and after the move
+            distance_before = self.calculate_distance(previous_ghost_positions[ghost_idx], previous_pacman_position)
+            distance_after = self.calculate_distance(current_ghost_pos, current_pacman_position)
+
+            # Reward or penalize the ghost based on movement
+            if distance_after < distance_before:  # Ghost moved closer
+                reward += config["distance_reward_scale"]
+            elif distance_after > distance_before:  # Ghost moved farther
+                reward -= config["distance_reward_scale"]
+
+        # Collision: If any ghost catches Pac-Man
+        if current_pacman_position in current_ghost_positions:  # Collision detected
+            reward += config["win_score"]  # Big reward for capturing Pac-Man
+            self.game_over = True
+
+        # Normalize reward
+        normalized_reward = self.reward_normalizer.normalize(reward)
+        return normalized_reward
+
+
+
     def step(self, pacman_action_vec, ghost_action_vec):
         """
         Executes one step in the environment by updating agent positions.
@@ -210,30 +317,24 @@ class Environment:
 
         Returns:
             state (Data): Updated game state graph.
-            reward (int): Reward for the step.
+            reward (float): Reward for this step.
             done (bool): Whether the game is over.
-            score (int): Current game score.
+            score (float): Current game score.
         """
-        # Increment game tick
-        self.game_tick += 1
+        # Store previous positions
+        previous_pacman_positions = self.pacman.action_vec.clone().tolist()
+        previous_ghost_positions = self.ghosts.action_vec.clone().tolist()
 
         # Update agent positions
         self.pacman.set_action(pacman_action_vec)
         self.ghosts.set_action(ghost_action_vec)
-
-        # Update the field with new positions
         self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
 
-        # Check for collisions (Pac-Man caught by any Ghost)
-        # TODO: why can't these be pytorch tensor operations?
-        pacman_positions = set(self.pacman.action_vec.tolist())
-        ghost_positions = set(self.ghosts.action_vec.tolist())
-
-        if pacman_positions & ghost_positions:
-            self.game_won = True
-            reward = config["reward"]
-        else:
-            reward = config["punishment"]
+        # Calculate reward using previous and new positions
+        reward = self.calculate_reward(
+            previous_pacman_positions, previous_ghost_positions,
+            self.pacman.action_vec.tolist(), self.ghosts.action_vec.tolist()
+        )
 
         # Check game-over conditions
         if self.game_tick >= config["max_steps"] or self.score <= config["loss_score"]:
@@ -243,6 +344,7 @@ class Environment:
         self.update_score(reward)
 
         return self.get_state(), reward, self.game_over or self.game_won, self.score
+
 
     def update_score(self, delta):
         """

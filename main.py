@@ -9,6 +9,7 @@ import copy
 from IPython.display import HTML
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import linregress
 
 def main():
     # --- Initialize Environment ---
@@ -106,40 +107,36 @@ def main():
     print(f"Unique states in replay buffer: {len(set([str(exp[0]) for exp in dqn.memory.data]))}")
 
     # --- Save Animation ---
-    print("Creating animation...")
-    last_5_episodes = list(range(num_episodes - 5, num_episodes))
-    # Filter graph_states to include only the last 5 episodes
-    last_5_graph_states = [
-        gs for gs in graph_states if gs["episode"] in last_5_episodes
-    ]
-    # Create the animation with the filtered states
-    anim = env.create_animation(last_5_graph_states)
-    anim.save("graph_animation.gif", writer="pillow")
-    print("Animation saved.")
+    # print("Creating animation...")
+    # last_5_episodes = list(range(num_episodes - 5, num_episodes))
+    # # Filter graph_states to include only the last 5 episodes
+    # last_5_graph_states = [
+    #     gs for gs in graph_states if gs["episode"] in last_5_episodes
+    # ]
+    # # Create the animation with the filtered states
+    # anim = env.create_animation(last_5_graph_states)
+    # anim.save("graph_animation.gif", writer="pillow")
+    # print("Animation saved.")
 
     # --- Plot the Losses ---
-    # plt.plot(all_losses)
-    # plt.xlabel("Replay Steps")
-    # plt.ylabel("Loss")
-    # plt.title("Training Loss Over Time")
-    # plt.savefig("loss_plot.png", dpi=300) 
-    # plt.show()
-    # Plot the losses
     plt.figure(figsize=(12, 6))
-    plt.plot(all_losses, color='blue', alpha=0.7, label="Raw Loss")
 
-    # Optional: Add a smoothed version of the loss curve
-    window_size = 50  # Adjust the window size for smoothing
-    if len(all_losses) > window_size:
-        smoothed_losses = np.convolve(all_losses, np.ones(window_size)/window_size, mode='valid')
-        plt.plot(range(window_size-1, len(all_losses)), smoothed_losses, color='red', linewidth=2, label="Smoothed Loss")
+    # Plot the raw losses
+    plt.plot(all_losses, color='blue', linewidth=1.5, label="Training Loss")
+
+    # Calculate and plot the trendline
+    x = np.arange(len(all_losses))  # Replay steps as x-axis values
+    y = np.array(all_losses)  # Losses as y-axis values
+    slope, intercept, _, _, _ = linregress(x, y)  # Linear regression
+    trendline = slope * x + intercept  # Calculate trendline
+    plt.plot(x, trendline, color='red', linestyle='--', linewidth=2, label="Trendline (slope={slope:.5f})")
 
     # Labels and title
     plt.xlabel("Replay Steps", fontsize=14)
     plt.ylabel("Loss", fontsize=14)
     plt.title("Training Loss Over Time", fontsize=16)
 
-    # Grid, legend, and style
+    # Grid and legend
     plt.grid(alpha=0.4)
     plt.legend(fontsize=12)
     plt.tight_layout()
@@ -147,10 +144,6 @@ def main():
     # Save the plot
     plt.savefig("loss_plot.png", dpi=300)
     plt.show()
-
-    # --- Save Model ---
-    torch.save(dqn.model.state_dict(), "dqn_model.pth")
-    print("Model saved.")
 
 if __name__ == "__main__":
     main()

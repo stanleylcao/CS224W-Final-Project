@@ -15,9 +15,10 @@ config = {
     "ghosts_idx_start": 1,
 
     # Game settings
-    "punishment": -0.1,
-    "reward": 5, # win score
-    "loss_score": -5, # loss score
+    "time_step_score": -0.01,          # Penalty for each time step
+    "win_score": 1.0,                  # Reward for catching Pac-Man (ghosts' perspective)
+    "loss_score": -1.0,                # Penalty if Pac-Man wins
+    "distance_reward_scale": 0.1,      # Reward for reducing distance to Pac-Man
 
     # Graph settings
     "edges": [
@@ -26,6 +27,7 @@ config = {
         [11, 12], [12, 13], [13, 14], [14, 15], [15, 16], [16, 17],
         [18, 19], [18, 23], [19, 20], [20, 21], [21, 22], [22, 23]
     ],
+    "num_nodes": 24,
 
     # DQN settings
     "state_shape": (10, 3),  # Example placeholder

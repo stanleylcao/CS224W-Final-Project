@@ -6,3 +6,4 @@ torch-sparse
 torch-cluster
 matplotlib
 ipython
+scipy

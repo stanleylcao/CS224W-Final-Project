@@ -147,11 +147,14 @@ class DQN:
         losses = []
         for i, (state, action, reward, next_state, done) in enumerate(experiences):
             with torch.no_grad():
-                # Compute Q-values for the next state
-                target_model_embs = self.target_model(next_state.x, next_state.edge_index)
-                target_q_values = self.get_qvals(next_state, target_model_embs)
-                max_target_q_values = torch.max(target_q_values)
-                target = reward + (1 - done) * self.gamma * max_target_q_values
+                if done:
+                    target = reward
+                else:
+                    # Compute Q-values for the next state
+                    target_model_embs = self.target_model(next_state.x, next_state.edge_index)
+                    target_q_values = self.get_qvals(next_state, target_model_embs)
+                    max_target_q_values = torch.max(target_q_values)
+                    target = reward + self.gamma * max_target_q_values
 
                 # Compute Q-values for the current state
                 model_embs = self.model(state.x, state.edge_index)
@@ -166,7 +169,7 @@ class DQN:
                 # TODO: this is a temporary fix -- need to figure out why some games initialize on a terminal state
                 matching_rows = (ghost_actions == action).all(dim=1).nonzero(as_tuple=True)
                 if matching_rows[0].numel() == 0:
-                    # print(f"Skipping invalid action {action.tolist()} not found in {ghost_actions.tolist()}")
+                    print(f"Skipping invalid action {action.tolist()} not found in {ghost_actions.tolist()}")
                     continue
 
                 action_idx = (ghost_actions == action).all(dim=1).nonzero(as_tuple=True)[0].item()
