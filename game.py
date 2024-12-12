@@ -117,20 +117,59 @@ class Environment:
         # Game state variables
         self.reset()
 
+    # def reset(self):
+    #     """
+    #     Resets the environment to its initial state.
+    #     """
+    #     self.game_tick = 0
+    #     self.game_over = False
+    #     self.game_won = False
+    #     self.score = 0
+
+    #     # Reset agent positions
+    #     self.pacman.set_action(
+    #         self.pacman.field.pacman_spawn_pos[:self.num_pacman])
+    #     self.ghosts.set_action(
+    #         self.ghosts.field.ghosts_spawn_pos[:self.num_ghosts])
+
+    #     # Update the field to reflect initial positions
+    #     self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
+
+    #     return self.get_state()
     def reset(self):
         """
-        Resets the environment to its initial state.
+        Resets the environment to its initial state with all agents in different nodes on the grid.
         """
         self.game_tick = 0
         self.game_over = False
         self.game_won = False
         self.score = 0
 
-        # Reset agent positions
-        self.pacman.set_action(
-            self.pacman.field.pacman_spawn_pos[:self.num_pacman])
-        self.ghosts.set_action(
-            self.ghosts.field.ghosts_spawn_pos[:self.num_ghosts])
+        # Total number of nodes in the graph
+        num_nodes = self.field.graph.x.shape[0]
+        used_positions = set()
+
+        # Randomly assign positions for Pac-Man agents
+        pacman_positions = []
+        for _ in range(self.num_pacman):
+            pos = random.randint(0, num_nodes - 1)
+            while pos in used_positions:
+                pos = random.randint(0, num_nodes - 1)
+            pacman_positions.append(pos)
+            used_positions.add(pos)
+
+        # Randomly assign positions for Ghost agents
+        ghost_positions = []
+        for _ in range(self.num_ghosts):
+            pos = random.randint(0, num_nodes - 1)
+            while pos in used_positions:
+                pos = random.randint(0, num_nodes - 1)
+            ghost_positions.append(pos)
+            used_positions.add(pos)
+
+        # Update agent positions
+        self.pacman.set_action(torch.tensor(pacman_positions))
+        self.ghosts.set_action(torch.tensor(ghost_positions))
 
         # Update the field to reflect initial positions
         self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
@@ -264,7 +303,7 @@ class Environment:
             nx.draw_networkx_nodes(graph, pos, nodelist=state["ghost_positions"], node_color="red", ax=ax)
 
             # Add a title
-            gameNumber = state["game_number"]
+            gameNumber = state["episode"]
             ax.set_title(f"Graph State: Frame {frame + 1}, Game # {gameNumber}")
 
         # Create the animation
@@ -274,18 +313,41 @@ class Environment:
 
 def main():
     # Code to test the environment
+    # env = Environment()
+    # env.dump()
+    # pacman_AS = env.get_pacman_action_set()
+    # ghost_AS = env.get_ghost_action_set()
+    # print(pacman_AS)
+    # print(ghost_AS)
+    # pacman_action_vec = pacman_AS[0]
+    # ghost_action_vec = ghost_AS[1]
+    # print(f'P ACT = {pacman_action_vec}')
+    # print(f'G ACT = {ghost_action_vec}')
+    # env.step(pacman_action_vec, ghost_action_vec)
+    # env.dump()
+
     env = Environment()
-    env.dump()
-    pacman_AS = env.get_pacman_action_set()
-    ghost_AS = env.get_ghost_action_set()
-    print(pacman_AS)
-    print(ghost_AS)
-    pacman_action_vec = pacman_AS[0]
-    ghost_action_vec = ghost_AS[1]
-    print(f'P ACT = {pacman_action_vec}')
-    print(f'G ACT = {ghost_action_vec}')
-    env.step(pacman_action_vec, ghost_action_vec)
-    env.dump()
+    num_tests = 10
+    for test in range(num_tests):
+        # Reset the environment
+        env.reset()
+
+        # Get Pac-Man and Ghost positions
+        pacman_positions = [env.pacman.get_pos(i) for i in range(env.num_pacman)]
+        ghost_positions = [env.ghosts.get_pos(i) for i in range(env.num_ghosts)]
+
+        print("positions: ", pacman_positions + ghost_positions)
+
+        # Combine positions into one list
+        all_positions = pacman_positions + ghost_positions
+
+        # Check for duplicates
+        if len(all_positions) != len(set(all_positions)):
+            print(f"Test {test + 1}/{num_tests}: Overlap detected!")
+            print(f"Pac-Man Positions: {pacman_positions}")
+            print(f"Ghost Positions: {ghost_positions}")
+        else:
+            print(f"Test {test + 1}/{num_tests}: No overlap detected.")
 
 
 if __name__ == "__main__":

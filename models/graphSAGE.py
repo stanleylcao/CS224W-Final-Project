@@ -16,8 +16,8 @@ class GraphSAGE(MessagePassing):
         # Aggregates messages using 'mean'
         super(GraphSAGE, self).__init__(aggr='mean', **kwargs)
 
-        self.in_channels = config["in_channels"]
-        self.out_channels = config["out_channels"]
+        self.in_channels = config["input_dim"]
+        self.out_channels = config["output_dim"]
         self.normalize = normalize
 
         # Linear transformations for the node's own features and aggregated neighborhood features

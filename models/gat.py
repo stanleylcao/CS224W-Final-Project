@@ -16,8 +16,8 @@ class GAT(MessagePassing):
     def __init__(self, **kwargs):
         super().__init__(node_dim=0, aggr='add', **kwargs)
 
-        self.in_channels = config["in_channels"]
-        self.out_channels = config["out_channels"]
+        self.in_channels = config["input_dim"]
+        self.out_channels = config["output_dim"]
         self.heads = config["heads"]
         self.negative_slope = config["negative_slope"]
         self.dropout = config["dropout"]

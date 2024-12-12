@@ -61,17 +61,15 @@ class DQN:
         node_features = data.x
         edge_index = data.edge_index
 
-        # Commented this out for now for debugging
-        # if epsilon is None:
-        #     epsilon = self.exploration_rate  # Default to exploration rate
-
-        # Ensure epsilon is a scalar (convert tensor to float if necessary)
-        # if isinstance(epsilon, torch.Tensor):
-        #     epsilon = epsilon.item()
+        if epsilon is None:
+            epsilon = self.exploration_rate  # Use current exploration rate if not provided
 
         # Exploration: Random action
-        # if np.random.rand() < epsilon:
-        #     return random.randrange(self.action_size)
+        if np.random.rand() < epsilon:
+            ghost_actions = env.get_ghost_action_set()
+            random_action_idx = np.random.randint(len(ghost_actions))
+            random_action = ghost_actions[random_action_idx]
+            return random_action
 
         # Exploitation: Select action with highest Q-value
         with torch.no_grad():
@@ -135,6 +133,8 @@ class DQN:
             pred_q_vals = self.get_qvals(state, model_embs)
             loss = self.loss_fn(pred_q_vals, q_values)
             loss.backward()
+            # Clip gradients to avoid exploding gradients
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optim.step()
         return loss.item()  # should return last loss
 
@@ -183,41 +183,6 @@ class DQN:
 
             loss = self.train_model(env, state, q_values)
             losses.append(loss)
-
-        # states = tf.convert_to_tensor(states)
-        # states = tf.reshape(states, self.state_tensor_shape)
-        # actions = tf.convert_to_tensor(actions, dtype=tf.int32)
-        # rewards = tf.convert_to_tensor(rewards, dtype=tf.float32)
-        # next_states = tf.convert_to_tensor(next_states)
-        # next_states = tf.reshape(next_states, self.state_tensor_shape)
-        # dones = tf.convert_to_tensor(dones, dtype=tf.float32)
-
-        # target_q_values = self.target_model.predict(next_states, verbose=0)
-        # q_values = self.model.predict(states, verbose=0)
-
-        # # Compute target values using the Bellman equation
-        # max_target_q_values = np.max(target_q_values, axis=1)
-        # targets = rewards + (1 - dones) * self.gamma * max_target_q_values
-
-        # # Compute TD errors
-        # batch_indices = np.arange(self.batch_size)
-        # q_values_current_action = q_values[batch_indices, actions]
-        # td_errors = targets - q_values_current_action
-        # self.memory.update_priorities(indices, np.abs(td_errors))
-
-        # For learning: Adjust Q values of taken actions to match the computed targets
-        # q_values[batch_indices, actions] = targets
-
-        # loss = self.model.train_on_batch(
-        #     states, q_values, sample_weight=weights)
-
-        self.exploration_rate = self.exploration_max*self.exploration_decay**episode
-        self.exploration_rate = max(
-            self.exploration_min, self.exploration_rate)
-        self.learning_rate = self.learning_rate_max * self.learning_rate_decay ** episode
-        # Decay learning rate
-        for param_group in self.optim.param_groups:
-            param_group['lr'] = self.learning_rate
 
         return losses
 

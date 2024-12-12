@@ -3,7 +3,7 @@ import torch
 config = {
     # General settings
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "num_episodes": 1,
+    "num_episodes": 5000,
     "max_steps": 50,
 
     # Environment settings
@@ -15,17 +15,14 @@ config = {
     "ghosts_idx_start": 1,
 
     # Game settings
-    "action_space": [0, 1, 2],
-    "punishment": -1,
-    "reward": 1,
-    "loss_score": float('-inf'),
-    "win_score": 5,
-    "max_val": 2,
+    "punishment": -0.1,
+    "reward": 5, # win score
+    "loss_score": -5, # loss score
 
     # Graph settings
     "edges": [
-        [0, 1], [0, 10], [1, 2], [2, 3], [2, 17], [3, 4], [4, 5],
-        [5, 6], [5, 19], [6, 7], [7, 8], [8, 9], [8, 11], [9, 10],
+        [0, 1], [0, 10], [1, 2], [2, 3], [2, 17], [2, 18], [3, 4], [4, 5],
+        [5, 6], [5, 19], [6, 7], [7, 8], [8, 9], [8, 11], [8, 20], [9, 10],
         [11, 12], [12, 13], [13, 14], [14, 15], [15, 16], [16, 17],
         [18, 19], [18, 23], [19, 20], [20, 21], [21, 22], [22, 23]
     ],
@@ -43,7 +40,7 @@ config = {
     "exploration_decay": 0.995,
 
     # Model settings
-    "gnn_type": "GCN",  # Options are "GAT", "GraphSage", or "GCN"
+    "gnn_type": "GraphSage",  # Options are "GAT", "GraphSage", or "GCN"
     "input_dim": 3,
     "hidden_dim": 128,
     # Note that this isn't the action set, but rather the final node embeddings
@@ -52,4 +49,5 @@ config = {
     "heads": 2,
     "dropout": 0.0,
     "negative_slope": 0.2,
+    "target_update_freq": 10,  # Frequency of target network updates
 }

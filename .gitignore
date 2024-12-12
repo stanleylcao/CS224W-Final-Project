@@ -1,3 +1,5 @@
 /venv
 models/__pycache__/
 __pycache__/
+.DS_Store
+dqn_model.pth

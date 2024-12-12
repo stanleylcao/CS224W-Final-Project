@@ -7,6 +7,8 @@ from dqn import DQN
 from config import config
 import copy
 from IPython.display import HTML
+import matplotlib.pyplot as plt
+import numpy as np
 
 def main():
     # --- Initialize Environment ---
@@ -17,7 +19,7 @@ def main():
         model = GCN()
     elif config["gnn_type"] == "GAT":
         model = GAT()
-    elif config["gnn_type"] == "GraphSAGE":
+    elif config["gnn_type"] == "GraphSage":
         model = GraphSAGE()
     else:
         raise ValueError(f"Unsupported GNN type: {config['gnn_type']}")
@@ -42,99 +44,113 @@ def main():
     dqn.model = dqn.model.to(device)
     dqn.target_model = dqn.target_model.to(device)
 
-    env.reset()
-
-    # List to store graph states for visualization
+    # --- Training Loop ---
+    num_episodes = config["num_episodes"]
+    max_steps = config["max_steps"]
+    target_update_freq = config["target_update_freq"]
     graph_states = []
 
-    state = copy.deepcopy(env.get_state())
-    num_games_played = 0
-    while dqn.memory.length() < dqn.batch_size:
+    all_rewards = []  # Track total rewards per episode
+    all_losses = [] # Track total losses per episode
+
+    for episode in range(num_episodes):
+        state = env.reset()
+        state = copy.deepcopy(state)
+        total_reward = 0
         done = False
-        # print('BEGIN--------------------')
-        counter = 0
-        while not done:
+
+        for step in range(max_steps):
+            # Select actions
             pacman_action = dqn.pacman_act(env)
             ghost_action = dqn.act(env)
-            next_state, reward, done, score = env.step(
-                pacman_action, ghost_action)
-            env.dump()
 
-            # Collect the current state of the graph to save for visualization
+            # Take a step in the environment
+            next_state, reward, done, score = env.step(pacman_action, ghost_action)
+
+            # Save graph state for visualization
             graph_states.append({
-                "game_number": num_games_played,
+                "episode": episode,
                 "graph": copy.deepcopy(env.field.graph),
                 "pacman_positions": [env.pacman.get_pos(i) for i in range(env.num_pacman)],
                 "ghost_positions": [env.ghosts.get_pos(i) for i in range(env.num_ghosts)],
             })
 
-            # print(done)
-            print('-' * 20)
+            # Store experience in replay buffer
             dqn.remember(state, copy.deepcopy(ghost_action), reward, copy.deepcopy(next_state), done)
             state = copy.deepcopy(next_state)
-        num_games_played += 1
-        env.reset()
 
-    print("num games played: ", num_games_played)
-    print("creating animation...")
-    # Create the animation
-    # anim = env.create_animation(graph_states)
-    # Display or save the animation
-    # anim.save("graph_animation.gif", writer="pillow")
-    print("animation created")
-
-    dqn.replay(env)
-
-    return
-
-    # --- Training Loop ---
-    for episode in range(config["num_episodes"]):
-        state = env.reset()  # Reset environment
-        total_reward = 0
-        done = False
-
-        for step in range(config["max_steps"]):
-            # Get graph data
-            # state_graph = env.get_state()
-            # node_features = state_graph.x.to(device)
-            # edge_index = state_graph.edge_index.to(device)
-
-            # Get action for pacman
-            pacman_action = dqn.pacman_act(env)
-
-            # Choose an action using the DQN
-            ghost_action = dqn.act(env)
-
-            # Take a step in the environment
-            next_state, reward, done, _ = env.step(pacman_action, ghost_action)
-
-            # Remember the experience
-            dqn.remember(state, action, reward, next_state, done)
-
-            # Update state
-            state = next_state
+            # Accumulate reward
             total_reward += reward
 
-            # Train DQN
-            loss = dqn.replay(episode)
-
+            # Break if game ends
             if done:
                 break
 
-        print(
-            f"Episode {episode + 1}/{config['num_episodes']} - Total Reward: {total_reward}")
+        # Train the model after collecting enough experiences
+        if dqn.memory.length() >= dqn.batch_size:
+            losses = dqn.replay(env)
+            all_losses.extend(losses)
 
-        # Update target network periodically
-        if episode % 10 == 0:
+        # Update the target network periodically
+        if episode % target_update_freq == 0:
             dqn.update_target_model()
 
+        # Decay epsilon
+        dqn.exploration_rate = max(dqn.exploration_min, dqn.exploration_rate * dqn.exploration_decay)
+
+        # Log rewards
+        all_rewards.append(total_reward)
+        if episode % 10 == 0:
+            print(f"Episode {episode}/{num_episodes} - Reward: {total_reward}")
+
+    print(f"Unique states in replay buffer: {len(set([str(exp[0]) for exp in dqn.memory.data]))}")
+
+    # --- Save Animation ---
+    print("Creating animation...")
+    last_5_episodes = list(range(num_episodes - 5, num_episodes))
+    # Filter graph_states to include only the last 5 episodes
+    last_5_graph_states = [
+        gs for gs in graph_states if gs["episode"] in last_5_episodes
+    ]
+    # Create the animation with the filtered states
+    anim = env.create_animation(last_5_graph_states)
+    anim.save("graph_animation.gif", writer="pillow")
+    print("Animation saved.")
+
+    # --- Plot the Losses ---
+    # plt.plot(all_losses)
+    # plt.xlabel("Replay Steps")
+    # plt.ylabel("Loss")
+    # plt.title("Training Loss Over Time")
+    # plt.savefig("loss_plot.png", dpi=300) 
+    # plt.show()
+    # Plot the losses
+    plt.figure(figsize=(12, 6))
+    plt.plot(all_losses, color='blue', alpha=0.7, label="Raw Loss")
+
+    # Optional: Add a smoothed version of the loss curve
+    window_size = 50  # Adjust the window size for smoothing
+    if len(all_losses) > window_size:
+        smoothed_losses = np.convolve(all_losses, np.ones(window_size)/window_size, mode='valid')
+        plt.plot(range(window_size-1, len(all_losses)), smoothed_losses, color='red', linewidth=2, label="Smoothed Loss")
+
+    # Labels and title
+    plt.xlabel("Replay Steps", fontsize=14)
+    plt.ylabel("Loss", fontsize=14)
+    plt.title("Training Loss Over Time", fontsize=16)
+
+    # Grid, legend, and style
+    plt.grid(alpha=0.4)
+    plt.legend(fontsize=12)
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig("loss_plot.png", dpi=300)
+    plt.show()
+
     # --- Save Model ---
-    dqn.save("dqn_model.pth")
-    print("Model saved!")
-
-    # --- Evaluation ---
-    # TO DO
-
+    torch.save(dqn.model.state_dict(), "dqn_model.pth")
+    print("Model saved.")
 
 if __name__ == "__main__":
     main()
