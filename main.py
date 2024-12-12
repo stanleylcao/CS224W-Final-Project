@@ -1,3 +1,16 @@
+"""
+main.py
+Runs the training loop, evaluates performance, and visualizes results.
+
+1. Initializes the environment and GNN model (based on config).
+2. Runs a training loop for DQN:
+  a) Collects experiences by interacting with the environment.
+  b) Trains the model using replay buffer samples.
+  c) Updates the target network periodically.
+3. Saves the model and generates a graph animation of the last episodes.
+
+"""
+
 import torch
 from models.gcn import GCN
 from models.gat import GAT
@@ -62,9 +75,12 @@ def main():
         steps = 0  # Track the number of steps in the episode
 
         for step in range(max_steps):
-            # Select actions
+            # # Select actions
             pacman_action = dqn.pacman_act(env)
             ghost_action = dqn.act(env)
+
+            # Heuristic as baseline
+            # ghost_action = dqn.ghost_heuristic_action(env)
 
             # Take a step in the environment
             next_state, reward, done, score = env.step(pacman_action, ghost_action)

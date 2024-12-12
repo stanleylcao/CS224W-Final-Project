@@ -1,3 +1,12 @@
+"""
+config.py
+Defines global configuration values and hyperparameters for the project:
+- General settings: Device (GPU/CPU), number of episodes, steps per episode.
+- Environment: Number of Pac-Man agents, ghosts, their spawn positions, and grid edges.
+- DQN: Parameters for learning, exploration, and replay memory.
+- Model: Specifies the GNN type (e.g., GAT, GraphSAGE) and architecture settings.
+"""
+
 import torch
 
 config = {
