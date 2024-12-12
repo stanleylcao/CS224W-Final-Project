@@ -44,6 +44,28 @@ def main():
     dqn.model = dqn.model.to(device)
     dqn.target_model = dqn.target_model.to(device)
 
+    env.reset()
+    state = env.get_state()
+    while dqn.memory.length() < dqn.batch_size:
+        done = False
+        # print('BEGIN--------------------')
+        while not done:
+            pacman_action = dqn.pacman_act(env)
+            ghost_action = dqn.act(env)
+            next_state, reward, done, score = env.step(
+                pacman_action, ghost_action)
+            env.dump()
+            # print(done)
+            print('-' * 20)
+            # TODO: This is an issue because we are pushing references
+            # rather than copies, which means all states will be the same
+            # So even right here, state already equals next_state, which is bad.
+            dqn.remember(state, ghost_action, reward, next_state, done)
+            state = next_state
+        env.reset()
+    dqn.replay(env)
+    return
+
     # --- Training Loop ---
     for episode in range(config["num_episodes"]):
         state = env.reset()  # Reset environment
@@ -56,10 +78,8 @@ def main():
             # node_features = state_graph.x.to(device)
             # edge_index = state_graph.edge_index.to(device)
 
-            # Get random action for pacman
-            pacman_action_set = env.get_pacman_action_set()
-            pacman_action = pacman_action_set[torch.randint(
-                len(pacman_action_set), (1,))]
+            # Get action for pacman
+            pacman_action = dqn.pacman_act(env)
 
             # Choose an action using the DQN
             ghost_action = dqn.act(env)

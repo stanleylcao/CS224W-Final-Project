@@ -3,7 +3,7 @@ import torch
 config = {
     # General settings
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "num_episodes": 1000,
+    "num_episodes": 1,
     "max_steps": 50,
 
     # Environment settings
@@ -18,7 +18,7 @@ config = {
     "action_space": [0, 1, 2],
     "punishment": -1,
     "reward": 1,
-    "loss_score": -5,
+    "loss_score": float('-inf'),
     "win_score": 5,
     "max_val": 2,
 

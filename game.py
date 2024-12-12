@@ -64,12 +64,14 @@ class Agent:
         self.num_agents = self.field.num_pacman if is_pacman else self.field.num_ghosts
         self.idx_start = self.field.pacman_idx_start if is_pacman else self.field.ghosts_idx_start
 
-    def get_action_set(self):
+    def get_action_set(self, data: Data = None):
         """
         Retrieves all possible actions for the agent(s), which is the neighbors of the current node(s).
         """
-        edge_index = self.graph.edge_index
-        x = self.graph.x
+        if data is None:
+            data = self.graph
+        edge_index = data.edge_index
+        x = data.x
         neighbors = []
 
         for i in range(self.num_agents):
@@ -209,7 +211,6 @@ class Environment:
         print(f"Score: {self.score}")
         print(f"Game Over: {self.game_over}")
         print(f"Game Won: {self.game_won}")
-        print(self.field.graph)
 
         for i in range(self.num_pacman):
             print(f"Pacman #{i} Position: {self.pacman.get_pos(i)}")
