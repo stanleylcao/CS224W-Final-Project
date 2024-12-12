@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class PrioritizedReplayBuffer:
     def __init__(self, capacity, epsilon=1e-6, alpha=0.2, beta=0.4, beta_increment=0.001):
         self.capacity = capacity

@@ -1,11 +1,12 @@
 import torch
-from models.gcn import GCNModel
-from models.gat import GATModel
-from models.graphSAGE import GraphSAGEModel
+from models.gcn import GCN
+from models.gat import GAT
+from models.graphSAGE import GraphSAGE
 from game import Environment
 from dqn import DQN
 from config import config
-
+import copy
+from IPython.display import HTML
 
 def main():
     # --- Initialize Environment ---
@@ -13,14 +14,11 @@ def main():
 
     # --- Initialize GNN Model ---
     if config["gnn_type"] == "GCN":
-        model = GCNModel(
-            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GCN()
     elif config["gnn_type"] == "GAT":
-        model = GATModel(
-            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GAT()
     elif config["gnn_type"] == "GraphSAGE":
-        model = GraphSAGEModel(
-            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GraphSAGE()
     else:
         raise ValueError(f"Unsupported GNN type: {config['gnn_type']}")
 
@@ -45,25 +43,48 @@ def main():
     dqn.target_model = dqn.target_model.to(device)
 
     env.reset()
-    state = env.get_state()
+
+    # List to store graph states for visualization
+    graph_states = []
+
+    state = copy.deepcopy(env.get_state())
+    num_games_played = 0
     while dqn.memory.length() < dqn.batch_size:
         done = False
         # print('BEGIN--------------------')
+        counter = 0
         while not done:
             pacman_action = dqn.pacman_act(env)
             ghost_action = dqn.act(env)
             next_state, reward, done, score = env.step(
                 pacman_action, ghost_action)
             env.dump()
+
+            # Collect the current state of the graph to save for visualization
+            graph_states.append({
+                "game_number": num_games_played,
+                "graph": copy.deepcopy(env.field.graph),
+                "pacman_positions": [env.pacman.get_pos(i) for i in range(env.num_pacman)],
+                "ghost_positions": [env.ghosts.get_pos(i) for i in range(env.num_ghosts)],
+            })
+
             # print(done)
             print('-' * 20)
-            # TODO: This is an issue because we are pushing references
-            # rather than copies, which means all states will be the same
-            # So even right here, state already equals next_state, which is bad.
-            dqn.remember(state, ghost_action, reward, next_state, done)
-            state = next_state
+            dqn.remember(state, copy.deepcopy(ghost_action), reward, copy.deepcopy(next_state), done)
+            state = copy.deepcopy(next_state)
+        num_games_played += 1
         env.reset()
+
+    print("num games played: ", num_games_played)
+    print("creating animation...")
+    # Create the animation
+    # anim = env.create_animation(graph_states)
+    # Display or save the animation
+    # anim.save("graph_animation.gif", writer="pillow")
+    print("animation created")
+
     dqn.replay(env)
+
     return
 
     # --- Training Loop ---

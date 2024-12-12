@@ -44,7 +44,7 @@ class DQN:
         self.target_model.load_state_dict(self.model.state_dict())
 
     def remember(self, state, action, reward, next_state, done):
-        self.memory.push((state, action, reward, next_state, done))
+            self.memory.push((copy.deepcopy(state), action, reward, copy.deepcopy(next_state), done))
 
     def act(self, env: Environment, epsilon=None):
         """
@@ -132,7 +132,7 @@ class DQN:
         for i in range(20):
             self.optim.zero_grad()
             model_embs = self.model(state.x, state.edge_index)
-            pred_q_vals = self.get_qvals(env, model_embs)
+            pred_q_vals = self.get_qvals(state, model_embs)
             loss = self.loss_fn(pred_q_vals, q_values)
             loss.backward()
             self.optim.step()
@@ -146,46 +146,42 @@ class DQN:
 
         losses = []
         for i, (state, action, reward, next_state, done) in enumerate(experiences):
-            # Compute Q values and next Q values
             with torch.no_grad():
-                target_model_embs = self.target_model(
-                    next_state.x, next_state.edge_index)
+                # Compute Q-values for the next state
+                target_model_embs = self.target_model(next_state.x, next_state.edge_index)
                 target_q_values = self.get_qvals(next_state, target_model_embs)
+                max_target_q_values = torch.max(target_q_values)
+                target = reward + (1 - done) * self.gamma * max_target_q_values
+
+                # Compute Q-values for the current state
                 model_embs = self.model(state.x, state.edge_index)
                 q_values = self.get_qvals(state, model_embs)
 
-            # Compute target values using the Bellman equation
-            max_target_q_values = torch.max(target_q_values)
-            target = reward + (1 - done) * self.gamma * max_target_q_values
+                # Map action to a valid index
+                ghost_actions = env.get_ghost_action_set(data = state)
 
-            # Must convert action to an index into q_values, which means that we
-            # have to recreate the action set... again...
-            # Should really have a function for this
-            neighbors = []
-            for i in range(config['num_ghosts']):
-                pos = (state.x[:, config['ghosts_idx_start'] + i]
-                       == 1).nonzero().item()
-                print(pos)
-                mask = state.edge_index[0] == pos
-                neighbors.append(state.edge_index[1, mask])
-            ghost_actions = torch.cartesian_prod(*neighbors)
-            action_idx = (ghost_actions == action).all(
-                dim=1).nonzero(as_tuple=True)[0]
+                #print(f"Action: {action.tolist()}, Type: {type(action)}, Shape: {action.shape}")
+                #print(f"Ghost Actions: {ghost_actions.tolist()}, Type: {type(ghost_actions)}, Shape: {ghost_actions.shape}")
 
-            print(ghost_actions)
-            print(action)
-            print(ghost_actions == action)
-            print(action_idx)
+                # TODO: this is a temporary fix -- need to figure out why some games initialize on a terminal state
+                matching_rows = (ghost_actions == action).all(dim=1).nonzero(as_tuple=True)
+                if matching_rows[0].numel() == 0:
+                    # print(f"Skipping invalid action {action.tolist()} not found in {ghost_actions.tolist()}")
+                    continue
 
-            # Compute TD errors
-            q_values_current_action = q_values[action]
-            td_error = target - q_values_current_action
-            self.memory.update_priorities(indices[i], np.abs(td_error))
+                action_idx = (ghost_actions == action).all(dim=1).nonzero(as_tuple=True)[0].item()
+                # print(f"Action Index: {action_idx}")  # Debugging
 
-            # For learning: Adjust Q values of taken actions to match the computed targets
-            q_values[action] = target
+                q_values_current_action = q_values[action_idx]
 
-            loss = self.train_model(state, q_values)
+                # Compute TD error
+                td_error = target - q_values_current_action
+                self.memory.update_priorities([indices[i]], [np.abs(td_error.item())])
+
+                # Update Q-values for learning
+                q_values[action_idx] = target
+
+            loss = self.train_model(env, state, q_values)
             losses.append(loss)
 
         # states = tf.convert_to_tensor(states)

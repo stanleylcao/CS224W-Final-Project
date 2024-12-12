@@ -1,7 +1,11 @@
 import torch
 from torch_geometric.data import Data
 from config import config
-
+import networkx as nx
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import copy
+import random
 
 class Field:
     """
@@ -63,6 +67,7 @@ class Agent:
         self.is_pacman = is_pacman
         self.num_agents = self.field.num_pacman if is_pacman else self.field.num_ghosts
         self.idx_start = self.field.pacman_idx_start if is_pacman else self.field.ghosts_idx_start
+
 
     def get_action_set(self, data: Data = None):
         """
@@ -131,24 +136,30 @@ class Environment:
         self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
 
         return self.get_state()
-
+    
     def get_state(self):
         """
         Returns the current state of the environment as a graph.
         """
         return self.field.graph
 
-    def get_pacman_action_set(self):
+    def restore_state(self, state: Data):
+        """
+        Restores the environment to a specific graph state.
+        """
+        self.field.graph = copy.deepcopy(state)  # Restore the graph
+
+    def get_pacman_action_set(self, data: Data = None):
         """
         Returns all valid actions for Pac-Man.
         """
-        return self.pacman.get_action_set()
+        return self.pacman.get_action_set(data)
 
-    def get_ghost_action_set(self):
+    def get_ghost_action_set(self, data: Data = None):
         """
         Returns all valid actions for Ghosts.
         """
-        return self.ghosts.get_action_set()
+        return self.ghosts.get_action_set(data)
 
     def step(self, pacman_action_vec, ghost_action_vec):
         """
@@ -217,6 +228,48 @@ class Environment:
 
         for i in range(self.num_ghosts):
             print(f"Ghost #{i} Position: {self.ghosts.get_pos(i)}")
+
+
+    def create_animation(self, graph_states):
+        """
+        Creates an animation of the graph states.
+        """
+        pos = {
+            0: (0, 1), 1: (2, 1), 2: (4, 1), 3: (4, 3), 4: (6, 3),
+            5: (8, 3), 6: (10, 3), 7: (12, 3), 8: (12, 1), 9: (14, 1),
+            10: (16, 1), 11: (12, -1), 12: (12, -3), 13: (10, -3),
+            14: (8, -3), 15: (6, -3), 16: (4, -3), 17: (4, -1), 18: (6, 1),
+            19: (8, 1), 20: (10, 1), 21: (10, -1), 22: (8, -1), 23: (6, -1),
+        }
+
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        def update(frame):
+            ax.clear()
+            state = graph_states[frame]
+
+            # Create NetworkX graph
+            graph = nx.Graph()
+            edge_index = state["graph"].edge_index.cpu().numpy()
+            for edge in edge_index.T:
+                graph.add_edge(edge[0], edge[1])
+
+            # Draw the graph with fixed positions
+            nx.draw(graph, pos, ax=ax, with_labels=True, node_size=500, node_color="lightblue", font_weight="bold")
+
+            # Highlight Pac-Man positions
+            nx.draw_networkx_nodes(graph, pos, nodelist=state["pacman_positions"], node_color="yellow", ax=ax)
+
+            # Highlight Ghost positions
+            nx.draw_networkx_nodes(graph, pos, nodelist=state["ghost_positions"], node_color="red", ax=ax)
+
+            # Add a title
+            gameNumber = state["game_number"]
+            ax.set_title(f"Graph State: Frame {frame + 1}, Game # {gameNumber}")
+
+        # Create the animation
+        anim = FuncAnimation(fig, update, frames=len(graph_states), interval=500, repeat=False)
+        return anim
 
 
 def main():

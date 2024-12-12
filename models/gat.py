@@ -5,6 +5,7 @@ from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.utils import softmax, scatter
 # from torch_scatter import scatter
 from typing import Optional, Tuple
+from config import config
 
 
 class GAT(MessagePassing):
@@ -12,22 +13,22 @@ class GAT(MessagePassing):
     A single Graph Attention Network (GAT) layer using multi-head attention.
     """
 
-    def __init__(self, in_channels, out_channels, heads=2, negative_slope=0.2, dropout=0.0, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(node_dim=0, aggr='add', **kwargs)
 
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.heads = heads
-        self.negative_slope = negative_slope
-        self.dropout = dropout
+        self.in_channels = config["in_channels"]
+        self.out_channels = config["out_channels"]
+        self.heads = config["heads"]
+        self.negative_slope = config["negative_slope"]
+        self.dropout = config["dropout"]
 
         # Linear transformations for node embeddings
-        self.lin_l = nn.Linear(in_channels, heads * out_channels, bias=False)
-        self.lin_r = nn.Linear(in_channels, heads * out_channels, bias=False)
+        self.lin_l = nn.Linear(self.in_channels, self.heads * self.out_channels, bias=False)
+        self.lin_r = nn.Linear(self.in_channels, self.heads * self.out_channels, bias=False)
 
         # Attention coefficients
-        self.att_l = nn.Parameter(torch.Tensor(1, heads, out_channels))
-        self.att_r = nn.Parameter(torch.Tensor(1, heads, out_channels))
+        self.att_l = nn.Parameter(torch.Tensor(1, self.heads, self.out_channels))
+        self.att_r = nn.Parameter(torch.Tensor(1, self.heads, self.out_channels))
 
         # Initialization of weights
         self.reset_parameters()

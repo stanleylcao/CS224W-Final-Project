@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch_geometric.nn.conv import MessagePassing
 from torch_geometric.utils import scatter
 # from torch_scatter import scatter
+from config import config
 
 
 class GraphSAGE(MessagePassing):
@@ -11,17 +12,17 @@ class GraphSAGE(MessagePassing):
     GraphSAGE layer that computes embeddings for graph nodes using neighborhood aggregation.
     """
 
-    def __init__(self, in_channels, out_channels, normalize=True, bias=True, **kwargs):
+    def __init__(self, normalize=True, bias=True, **kwargs):
         # Aggregates messages using 'mean'
         super(GraphSAGE, self).__init__(aggr='mean', **kwargs)
 
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        self.in_channels = config["in_channels"]
+        self.out_channels = config["out_channels"]
         self.normalize = normalize
 
         # Linear transformations for the node's own features and aggregated neighborhood features
-        self.lin_l = nn.Linear(in_channels, out_channels, bias=bias)
-        self.lin_r = nn.Linear(in_channels, out_channels, bias=bias)
+        self.lin_l = nn.Linear(self.in_channels, self.out_channels, bias=bias)
+        self.lin_r = nn.Linear(self.in_channels, self.out_channels, bias=bias)
 
         # Initialize parameters
         self.reset_parameters()

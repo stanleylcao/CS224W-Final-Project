@@ -1,9 +1,10 @@
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
+from config import config
 
 class GCN(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, dropout, return_embeds=False):
+    def __init__(self, return_embeds=False):
         super(GCN, self).__init__()
         
         # Initialize GCN layers and batch normalization
@@ -11,16 +12,16 @@ class GCN(torch.nn.Module):
         self.bns = torch.nn.ModuleList()
         
         # Add GCN layers
-        for i in range(num_layers):
-            self.convs.append(GCNConv(input_dim if i == 0 else hidden_dim, hidden_dim))
-            if i < num_layers - 1:
-                self.bns.append(torch.nn.BatchNorm1d(hidden_dim))
+        for i in range(config["num_layers"]):
+            self.convs.append(GCNConv(config["input_dim"] if i == 0 else config["hidden_dim"], config["hidden_dim"]))
+            if i < config["num_layers"] - 1:
+                self.bns.append(torch.nn.BatchNorm1d(config["hidden_dim"]))
         
         # Final classification layer (linear transformation)
-        self.final_layer = GCNConv(hidden_dim, output_dim)
+        self.final_layer = GCNConv(config["hidden_dim"], config["output_dim"])
         
         # Dropout probability
-        self.dropout = dropout
+        self.dropout = config["dropout"]
         
         # Flag to skip final classification and return embeddings
         self.return_embeds = return_embeds
