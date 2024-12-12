@@ -3,7 +3,7 @@ import torch
 config = {
     # General settings
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "num_episodes": 5000,
+    "num_episodes": 1000,
     "max_steps": 50,
 
     # Environment settings
@@ -34,12 +34,12 @@ config = {
     "action_size": 4,
     "learning_rate_max": 0.001,
     "learning_rate_decay": 0.995,
-    "gamma": 0.75,
+    "gamma": 0.95,
     "memory_size": 2000,
     "batch_size": 32,
-    "exploration_max": 1.0,
+    "exploration_max": 1.2,
     "exploration_min": 0.01,
-    "exploration_decay": 0.995,
+    "exploration_decay": 0.999,
 
     # Model settings
     "gnn_type": "GraphSage",  # Options are "GAT", "GraphSage", or "GCN"

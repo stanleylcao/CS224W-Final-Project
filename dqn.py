@@ -1,16 +1,11 @@
 import numpy as np
 import copy
-import random
-from pprint import pprint
 from replay_buffer import PrioritizedReplayBuffer
 import torch
-
 from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
-
 from game import Environment
-
 from config import config
+import torch.optim as optim
 
 
 class DQN:
@@ -39,6 +34,7 @@ class DQN:
         self.loss_fn = torch.nn.MSELoss()
         self.optim = torch.optim.Adam(
             model.parameters(), lr=self.learning_rate)
+        self.scheduler = optim.lr_scheduler.ExponentialLR(self.optim, gamma=self.learning_rate_decay)
 
     def update_target_model(self):
         self.target_model.load_state_dict(self.model.state_dict())
@@ -186,6 +182,9 @@ class DQN:
 
             loss = self.train_model(env, state, q_values)
             losses.append(loss)
+
+        # Step the scheduler to decay the learning rate
+        self.scheduler.step()
 
         return losses
 

@@ -59,6 +59,7 @@ def main():
         state = copy.deepcopy(state)
         total_reward = 0
         done = False
+        steps = 0  # Track the number of steps in the episode
 
         for step in range(max_steps):
             # Select actions
@@ -82,13 +83,17 @@ def main():
 
             # Accumulate reward
             total_reward += reward
+            steps += 1
 
             # Break if game ends
             if done:
                 break
 
+        # Calculate the average reward for the episode
+        average_reward = total_reward / steps if steps > 0 else 0
+
         # Train the model after collecting enough experiences
-        if dqn.memory.length() >= dqn.batch_size:
+        if dqn.memory.length() >= 5 * dqn.batch_size:
             losses = dqn.replay(env)
             all_losses.extend(losses)
 
@@ -100,11 +105,9 @@ def main():
         dqn.exploration_rate = max(dqn.exploration_min, dqn.exploration_rate * dqn.exploration_decay)
 
         # Log rewards
-        all_rewards.append(total_reward)
+        all_rewards.append(average_reward)
         if episode % 10 == 0:
-            print(f"Episode {episode}/{num_episodes} - Reward: {total_reward}")
-
-    print(f"Unique states in replay buffer: {len(set([str(exp[0]) for exp in dqn.memory.data]))}")
+            print(f"Episode {episode}/{num_episodes} - Average Reward: {average_reward:.2f}")
 
     # --- Save Animation ---
     # print("Creating animation...")
@@ -129,7 +132,8 @@ def main():
     y = np.array(all_losses)  # Losses as y-axis values
     slope, intercept, _, _, _ = linregress(x, y)  # Linear regression
     trendline = slope * x + intercept  # Calculate trendline
-    plt.plot(x, trendline, color='red', linestyle='--', linewidth=2, label="Trendline (slope={slope:.5f})")
+    plt.plot(x, trendline, color='red', linestyle='--', linewidth=2, label=f"Trendline (slope={slope:.5f})")
+
 
     # Labels and title
     plt.xlabel("Replay Steps", fontsize=14)
