@@ -2,11 +2,12 @@ import torch
 from torch_geometric.data import Data
 from config import config
 
+
 class Field:
     """
     Represents the state of the game as a graph.
     """
-    
+
     def __init__(self):
         self.num_pacman = config["num_pacman"]
         self.num_ghosts = config["num_ghosts"]
@@ -17,7 +18,8 @@ class Field:
 
         # Create the graph
         edge_index = torch.tensor(config["edges"], dtype=torch.long)
-        flipped_edges = edge_index.flip(dims=[1])   # add other direction to represent undirected graph
+        # add other direction to represent undirected graph
+        flipped_edges = edge_index.flip(dims=[1])
         undirected_edge_index = torch.cat([edge_index, flipped_edges], dim=0)
 
         x = torch.zeros(
@@ -30,7 +32,8 @@ class Field:
         for i in range(self.num_ghosts):
             x[self.ghosts_spawn_pos[i], self.ghosts_idx_start + i] = 1
 
-        self.graph = Data(x=x, edge_index=undirected_edge_index.t().contiguous())
+        self.graph = Data(
+            x=x, edge_index=undirected_edge_index.t().contiguous())
         self.graph.validate(raise_on_error=True)
 
     def update_field(self, pacman_positions, ghost_positions):
@@ -39,18 +42,21 @@ class Field:
         """
         self.graph.x[:, :] = 0  # Clear all positions
 
+        # TODO: Maybe we need to vectorize this
         for i, pos in enumerate(pacman_positions):
             self.graph.x[pos, i] = 1  # Update Pac-Man positions
 
         for i, pos in enumerate(ghost_positions):
-            self.graph.x[pos, self.num_pacman + i] = 1  # Update Ghost positions
+            # Update Ghost positions
+            self.graph.x[pos, self.ghosts_idx_start + i] = 1
+
 
 class Agent:
     """
     Base class for agents in the game (e.g., Pac-Man or Ghosts).
     """
 
-    def __init__(self, field, is_pacman=True):
+    def __init__(self, field: Field, is_pacman=True):
         self.field = field
         self.graph = field.graph
         self.action_vec = None
@@ -58,12 +64,14 @@ class Agent:
         self.num_agents = self.field.num_pacman if is_pacman else self.field.num_ghosts
         self.idx_start = self.field.pacman_idx_start if is_pacman else self.field.ghosts_idx_start
 
-    def get_action_set(self):
+    def get_action_set(self, data: Data = None):
         """
         Retrieves all possible actions for the agent(s), which is the neighbors of the current node(s).
         """
-        edge_index = self.graph.edge_index
-        x = self.graph.x
+        if data is None:
+            data = self.graph
+        edge_index = data.edge_index
+        x = data.x
         neighbors = []
 
         for i in range(self.num_agents):
@@ -71,7 +79,11 @@ class Agent:
             mask = edge_index[0] == pos
             neighbors.append(edge_index[1, mask])
 
-        return torch.cartesian_prod(*neighbors)
+        actions = torch.cartesian_prod(*neighbors)
+        return actions if self.num_agents > 1 else actions.unsqueeze(dim=-1)
+
+    def get_pos(self, agent_idx):
+        return (self.graph.x[:, self.idx_start + agent_idx] == 1).nonzero().item()
 
     def set_action(self, action_vec):
         """
@@ -98,10 +110,7 @@ class Environment:
         self.ghosts = Agent(self.field, is_pacman=False)
 
         # Game state variables
-        self.score = 0
-        self.game_tick = 0
-        self.game_over = False
-        self.game_won = False
+        self.reset()
 
     def reset(self):
         """
@@ -113,8 +122,10 @@ class Environment:
         self.score = 0
 
         # Reset agent positions
-        self.pacman.set_action(self.pacman.field.pacman_spawn_pos)
-        self.ghosts.set_action(self.ghosts.field.ghosts_spawn_pos)
+        self.pacman.set_action(
+            self.pacman.field.pacman_spawn_pos[:self.num_pacman])
+        self.ghosts.set_action(
+            self.ghosts.field.ghosts_spawn_pos[:self.num_ghosts])
 
         # Update the field to reflect initial positions
         self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
@@ -164,6 +175,7 @@ class Environment:
         self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
 
         # Check for collisions (Pac-Man caught by any Ghost)
+        # TODO: why can't these be pytorch tensor operations?
         pacman_positions = set(self.pacman.action_vec.tolist())
         ghost_positions = set(self.ghosts.action_vec.tolist())
 
@@ -199,13 +211,12 @@ class Environment:
         print(f"Score: {self.score}")
         print(f"Game Over: {self.game_over}")
         print(f"Game Won: {self.game_won}")
-        print(self.field.graph)
 
         for i in range(self.num_pacman):
-            print(f"Pacman #{i} Position: {self.pacman.action_vec[i]}")
+            print(f"Pacman #{i} Position: {self.pacman.get_pos(i)}")
 
         for i in range(self.num_ghosts):
-            print(f"Ghost #{i} Position: {self.ghosts.action_vec[i]}")
+            print(f"Ghost #{i} Position: {self.ghosts.get_pos(i)}")
 
 
 def main():
@@ -214,6 +225,8 @@ def main():
     env.dump()
     pacman_AS = env.get_pacman_action_set()
     ghost_AS = env.get_ghost_action_set()
+    print(pacman_AS)
+    print(ghost_AS)
     pacman_action_vec = pacman_AS[0]
     ghost_action_vec = ghost_AS[1]
     print(f'P ACT = {pacman_action_vec}')

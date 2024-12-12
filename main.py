@@ -1,6 +1,7 @@
 import torch
 from models.gcn import GCNModel
 from models.gat import GATModel
+from models.graphSAGE import GraphSAGEModel
 from game import Environment
 from dqn import DQN
 from config import config
@@ -8,13 +9,18 @@ from config import config
 
 def main():
     # --- Initialize Environment ---
-    env = Environment(num_pacman=config["num_pacman"], num_ghosts=config["num_ghosts"])
+    env = Environment()
 
     # --- Initialize GNN Model ---
     if config["gnn_type"] == "GCN":
-        model = GCNModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GCNModel(
+            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
     elif config["gnn_type"] == "GAT":
-        model = GATModel(input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+        model = GATModel(
+            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
+    elif config["gnn_type"] == "GraphSAGE":
+        model = GraphSAGEModel(
+            input_dim=config["input_dim"], hidden_dim=config["hidden_dim"], output_dim=config["output_dim"])
     else:
         raise ValueError(f"Unsupported GNN type: {config['gnn_type']}")
 
@@ -38,6 +44,28 @@ def main():
     dqn.model = dqn.model.to(device)
     dqn.target_model = dqn.target_model.to(device)
 
+    env.reset()
+    state = env.get_state()
+    while dqn.memory.length() < dqn.batch_size:
+        done = False
+        # print('BEGIN--------------------')
+        while not done:
+            pacman_action = dqn.pacman_act(env)
+            ghost_action = dqn.act(env)
+            next_state, reward, done, score = env.step(
+                pacman_action, ghost_action)
+            env.dump()
+            # print(done)
+            print('-' * 20)
+            # TODO: This is an issue because we are pushing references
+            # rather than copies, which means all states will be the same
+            # So even right here, state already equals next_state, which is bad.
+            dqn.remember(state, ghost_action, reward, next_state, done)
+            state = next_state
+        env.reset()
+    dqn.replay(env)
+    return
+
     # --- Training Loop ---
     for episode in range(config["num_episodes"]):
         state = env.reset()  # Reset environment
@@ -46,16 +74,15 @@ def main():
 
         for step in range(config["max_steps"]):
             # Get graph data
-            state_graph = env.get_state()
-            node_features = state_graph.x.to(device)
-            edge_index = state_graph.edge_index.to(device)
+            # state_graph = env.get_state()
+            # node_features = state_graph.x.to(device)
+            # edge_index = state_graph.edge_index.to(device)
+
+            # Get action for pacman
+            pacman_action = dqn.pacman_act(env)
 
             # Choose an action using the DQN
-            action = dqn.act(node_features, edge_index)
-
-            # Convert action to environment-readable format
-            pacman_action = torch.tensor([action])  # Example for 1 Pac-Man
-            ghost_action = torch.tensor([action % env.num_ghosts])  # Example for ghosts
+            ghost_action = dqn.act(env)
 
             # Take a step in the environment
             next_state, reward, done, _ = env.step(pacman_action, ghost_action)
@@ -73,7 +100,8 @@ def main():
             if done:
                 break
 
-        print(f"Episode {episode + 1}/{config["num_episodes"]} - Total Reward: {total_reward}")
+        print(
+            f"Episode {episode + 1}/{config['num_episodes']} - Total Reward: {total_reward}")
 
         # Update target network periodically
         if episode % 10 == 0:
@@ -85,6 +113,7 @@ def main():
 
     # --- Evaluation ---
     # TO DO
+
 
 if __name__ == "__main__":
     main()

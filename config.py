@@ -3,7 +3,7 @@ import torch
 config = {
     # General settings
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "num_episodes": 1000,
+    "num_episodes": 1,
     "max_steps": 50,
 
     # Environment settings
@@ -18,7 +18,7 @@ config = {
     "action_space": [0, 1, 2],
     "punishment": -1,
     "reward": 1,
-    "loss_score": -5,
+    "loss_score": float('-inf'),
     "win_score": 5,
     "max_val": 2,
 
@@ -46,5 +46,6 @@ config = {
     "gnn_type": "GCN",  # Change to "GAT" for testing GATModel
     "input_dim": 3,
     "hidden_dim": 128,
+    # Note that this isn't the action set, but rather the final node embeddings
     "output_dim": 4,
 }
