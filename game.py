@@ -1,3 +1,11 @@
+"""
+game.py
+Simulates the Pac-Man game environment.
+The game is represented as a graph with nodes for positions and edges for movements.
+Agents (Pac-Man and ghosts) are initialized with random or fixed spawn positions.
+The graph state is updated at each step, and it tracks rewards, game-over conditions, and collision detection (Pac-Man caught by ghosts).
+"""
+
 import torch
 from torch_geometric.data import Data
 from config import config
@@ -214,6 +222,9 @@ class Environment:
             done (bool): Whether the game is over.
             score (int): Current game score.
         """
+        if pacman_action_vec is None or ghost_action_vec is None:
+            raise ValueError("Action vectors for Pac-Man or Ghosts are None!")
+
         # Increment game tick
         self.game_tick += 1
 
