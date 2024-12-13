@@ -267,5 +267,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sim_random(5000)
-    # main()
+    # sim_random(5000)
+    main()
