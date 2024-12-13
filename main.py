@@ -19,10 +19,6 @@ from game import Environment
 from dqn import DQN
 from config import config
 import copy
-<<<<<<< Updated upstream
-=======
-# from IPython.display import HTML
->>>>>>> Stashed changes
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import linregress
@@ -240,7 +236,6 @@ def main():
     plt.savefig("loss_plot.png", dpi=300)
     plt.show()
 
-<<<<<<< Updated upstream
     # --- Plot the Rewards ---
     plt.figure(figsize=(12, 6))
 
@@ -250,9 +245,11 @@ def main():
     # Calculate and plot the trendline for rewards
     x_rewards = np.arange(len(all_rewards))
     y_rewards = np.array(all_rewards)
-    slope_rewards, intercept_rewards, _, _, _ = linregress(x_rewards, y_rewards)
+    slope_rewards, intercept_rewards, _, _, _ = linregress(
+        x_rewards, y_rewards)
     trendline_rewards = slope_rewards * x_rewards + intercept_rewards
-    plt.plot(x_rewards, trendline_rewards, color='orange', linestyle='--', linewidth=2, label=f"Trendline (slope={slope_rewards:.5f})")
+    plt.plot(x_rewards, trendline_rewards, color='orange', linestyle='--',
+             linewidth=2, label=f"Trendline (slope={slope_rewards:.5f})")
 
     # Labels and title
     plt.xlabel("Episodes", fontsize=14)
@@ -267,8 +264,7 @@ def main():
     # Save the plot
     plt.savefig("rewards_plot.png", dpi=300)
     plt.show()
-=======
->>>>>>> Stashed changes
+
 
 if __name__ == "__main__":
     sim_random(5000)
