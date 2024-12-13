@@ -1,3 +1,7 @@
+"""
+graphSAGE.py
+Defines the GraphSAGE and GraphSAGEModel classes. Based on code from Colab 3.
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
