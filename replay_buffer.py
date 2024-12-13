@@ -7,6 +7,7 @@ and updates priorities using the Temporal Difference (TD) error.
 
 import numpy as np
 
+
 class PrioritizedReplayBuffer:
     def __init__(self, capacity, epsilon=1e-6, alpha=0.2, beta=0.4, beta_increment=0.001):
         self.capacity = capacity
@@ -22,6 +23,9 @@ class PrioritizedReplayBuffer:
         return len(self.data)
 
     def push(self, experience):
+        """
+        Adds a new experiences to the prioritized replay buffer
+        """
         max_priority = np.max(self.priority_buffer) if self.data else 1.0
         if len(self.data) < self.capacity:
             self.data.append(experience)
@@ -31,6 +35,9 @@ class PrioritizedReplayBuffer:
         self.position = (self.position + 1) % self.capacity
 
     def sample(self, batch_size):
+        """
+        Samples a batch from the prioritized replay buffer
+        """
         priorities = self.priority_buffer[:len(self.data)]
         probabilities = priorities ** self.alpha
         probabilities /= probabilities.sum()
@@ -43,9 +50,12 @@ class PrioritizedReplayBuffer:
         weights /= weights.max()
 
         self.beta = np.min([1., self.beta + self.beta_increment])
-        
+
         return experiences, indices, weights
 
     def update_priorities(self, indices, errors):
+        """
+        Sets the priorities of the buffer
+        """
         for idx, error in zip(indices, errors):
             self.priority_buffer[idx] = error + self.epsilon
