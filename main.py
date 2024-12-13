@@ -24,79 +24,6 @@ import numpy as np
 from scipy.stats import linregress
 
 
-def sim_random(num_episodes):
-    env = Environment()
-    max_steps = config["max_steps"]
-    graph_states = []
-    all_rewards = []  # Track total rewards per episode
-
-    for episode in range(num_episodes):
-        state = env.reset()
-        state = copy.deepcopy(state)
-        total_reward = 0
-        done = False
-        print(f'EPS = {episode}')
-        for step in range(max_steps):
-            # Select actions
-            pacman_action_set = env.get_pacman_action_set()
-            pacman_action = pacman_action_set[torch.randint(
-                len(pacman_action_set), (1,)).item()]
-
-            ghost_actions = env.get_ghost_action_set()
-            random_action_idx = np.random.randint(len(ghost_actions))
-            ghost_action = ghost_actions[random_action_idx]
-
-            # Take a step in the environment
-            next_state, reward, done, score = env.step(
-                pacman_action, ghost_action)
-
-            # Save graph state for visualization
-            graph_states.append({
-                "episode": episode,
-                "graph": copy.deepcopy(env.field.graph),
-                "pacman_positions": [env.pacman.get_pos(i) for i in range(env.num_pacman)],
-                "ghost_positions": [env.ghosts.get_pos(i) for i in range(env.num_ghosts)],
-            })
-
-            # Store experience in replay buffer
-            state = copy.deepcopy(next_state)
-
-            # Accumulate reward
-            total_reward += reward
-
-            # Break if game ends
-            if done:
-                break
-        # Log rewards
-        all_rewards.append(reward)
-        if episode % 10 == 0:
-            print(f"Episode {episode}/{num_episodes} - Reward: {reward:.2f}")
-
-    plt.figure(figsize=(12, 6))
-
-    # Plot the raw losses
-    plt.plot(all_rewards, color='blue', linewidth=1.5, label="Training Loss")
-
-    # Calculate and plot the trendline
-    x = np.arange(len(all_rewards))  # Replay steps as x-axis values
-    y = np.array(all_rewards)  # Losses as y-axis values
-    slope, intercept, _, _, _ = linregress(x, y)  # Linear regression
-    trendline = slope * x + intercept  # Calculate trendline
-    plt.plot(x, trendline, color='red', linestyle='--',
-             linewidth=2, label=f"Trendline (slope={slope:.5f})")
-
-    # Labels and title
-    plt.xlabel("Replay Steps", fontsize=14)
-    plt.ylabel("Loss", fontsize=14)
-    plt.title("Training Loss Over Time", fontsize=16)
-
-    # Grid and legend
-    plt.grid(alpha=0.4)
-    plt.legend(fontsize=12)
-    plt.tight_layout()
-    plt.show()
-
-
 def main():
     # --- Initialize Environment ---
     env = Environment()
@@ -267,5 +194,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # sim_random(5000)
     main()
