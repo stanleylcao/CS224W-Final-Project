@@ -5,5 +5,4 @@ torch-scatter
 torch-sparse 
 torch-cluster
 matplotlib
-ipython
 scipy

@@ -306,7 +306,7 @@ class Environment:
 
         # Collision: If any ghost catches Pac-Man
         if current_pacman_position in current_ghost_positions:  # Collision detected
-            reward = config["win_score"]  # Big reward for capturing Pac-Man
+            reward += config["win_score"]  # Big reward for capturing Pac-Man
             self.game_over = True
 
         # Normalize reward

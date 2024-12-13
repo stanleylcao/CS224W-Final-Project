@@ -13,7 +13,7 @@ config = {
     # General settings
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "num_episodes": 500,
-    "max_steps": 15,
+    "max_steps": 8,
 
     # Environment settings
     "num_pacman": 1,
@@ -51,7 +51,7 @@ config = {
     "exploration_decay": 0.995,
 
     # Model settings
-    "gnn_type": "GAT",  # Options are "GAT", "GraphSage", or "GCN"
+    "gnn_type": "GCN",  # Options are "GAT", "GraphSage", or "GCN"
     "input_dim": 3,
     "hidden_dim": 128,
     # Note that this isn't the action set, but rather the final node embeddings

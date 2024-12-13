@@ -19,7 +19,6 @@ from game import Environment
 from dqn import DQN
 from config import config
 import copy
-from IPython.display import HTML
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import linregress
@@ -158,6 +157,33 @@ def main():
 
     # Save the plot
     plt.savefig("loss_plot.png", dpi=300)
+    plt.show()
+
+    # --- Plot the Rewards ---
+    plt.figure(figsize=(12, 6))
+
+    # Plot the rewards
+    plt.plot(all_rewards, color='green', linewidth=1.5, label="Rewards")
+
+    # Calculate and plot the trendline for rewards
+    x_rewards = np.arange(len(all_rewards))
+    y_rewards = np.array(all_rewards)
+    slope_rewards, intercept_rewards, _, _, _ = linregress(x_rewards, y_rewards)
+    trendline_rewards = slope_rewards * x_rewards + intercept_rewards
+    plt.plot(x_rewards, trendline_rewards, color='orange', linestyle='--', linewidth=2, label=f"Trendline (slope={slope_rewards:.5f})")
+
+    # Labels and title
+    plt.xlabel("Episodes", fontsize=14)
+    plt.ylabel("Total Reward", fontsize=14)
+    plt.title("Total Reward Over Episodes", fontsize=16)
+
+    # Grid and legend
+    plt.grid(alpha=0.4)
+    plt.legend(fontsize=12)
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig("rewards_plot.png", dpi=300)
     plt.show()
 
 if __name__ == "__main__":
