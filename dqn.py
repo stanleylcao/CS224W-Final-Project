@@ -40,16 +40,24 @@ class DQN:
         self.target_model = copy.deepcopy(self.model)
         self.update_target_model()
 
-        #self.loss_fn = torch.nn.MSELoss()
+        # self.loss_fn = torch.nn.MSELoss()
         self.optim = torch.optim.Adam(
             model.parameters(), lr=self.learning_rate, weight_decay=1e-5)
-        self.scheduler = optim.lr_scheduler.ExponentialLR(self.optim, gamma=self.learning_rate_decay)
+        self.scheduler = optim.lr_scheduler.ExponentialLR(
+            self.optim, gamma=self.learning_rate_decay)
 
     def update_target_model(self):
         self.target_model.load_state_dict(self.model.state_dict())
 
     def remember(self, state, action, reward, next_state, done):
-            self.memory.push((copy.deepcopy(state), action, reward, copy.deepcopy(next_state), done))
+        self.memory.push((copy.deepcopy(state), action, reward,
+                         copy.deepcopy(next_state), done))
+
+    def random_act(self, env: Environment):
+        ghost_actions = env.get_ghost_action_set()
+        random_action_idx = np.random.randint(len(ghost_actions))
+        random_action = ghost_actions[random_action_idx]
+        return random_action
 
     def act(self, env: Environment, epsilon=None):
         """
@@ -81,7 +89,7 @@ class DQN:
             # Forward pass through the model
             self.model.eval()  # set model to eval mode
             node_embs = self.model(node_features, edge_index)  # (V, out_d)
-            #print("node_embs: ", node_embs)
+            # print("node_embs: ", node_embs)
             ghost_actions = env.get_ghost_action_set()
 
             q_vals = self.get_qvals(data, node_embs)
@@ -129,13 +137,14 @@ class DQN:
         pacman_action = pacman_action_set[torch.randint(
             len(pacman_action_set), (1,)).item()]
         return pacman_action
-    
+
     def pacman_heuristic_action(self, env):
         # BUG
         state = env.get_state()
         edge_index = state.edge_index
         pacman_position = env.pacman.get_pos(0)
-        ghost_positions = [env.ghosts.get_pos(i) for i in range(env.num_ghosts)]
+        ghost_positions = [env.ghosts.get_pos(
+            i) for i in range(env.num_ghosts)]
 
         action_set = env.get_pacman_action_set()
         if len(action_set) == 0:  # Handle empty action set
@@ -147,7 +156,8 @@ class DQN:
         for action in action_set:
             new_pos = action.item()
             distances = [
-                torch.count_nonzero(edge_index[1] == ghost_pos) - torch.count_nonzero(edge_index[0] == pacman_position)
+                torch.count_nonzero(
+                    edge_index[1] == ghost_pos) - torch.count_nonzero(edge_index[0] == pacman_position)
                 for ghost_pos in ghost_positions
             ]
             nearest_distance = min(distances)
@@ -161,7 +171,8 @@ class DQN:
         state = env.get_state()
         edge_index = state.edge_index
         pacman_position = env.pacman.get_pos(0)
-        ghost_positions = [env.ghosts.get_pos(i) for i in range(env.num_ghosts)]
+        ghost_positions = [env.ghosts.get_pos(
+            i) for i in range(env.num_ghosts)]
 
         actions = []
         for ghost_idx, ghost_pos in enumerate(ghost_positions):
@@ -186,7 +197,6 @@ class DQN:
 
         return torch.tensor(actions)
 
-
     def train_model(self, env, state: Data, q_values):
         # 20 is tunable parameter? Hard to judge whats happening in the real code
         # Also, we can't really train on batches because the action set is not a
@@ -201,19 +211,20 @@ class DQN:
             loss = F.smooth_l1_loss(pred_q_vals, q_values)
             loss.backward()
             # Clip gradients to avoid exploding gradients
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=0.5)
             self.optim.step()
 
         return loss.item()  # should return last loss
 
     def replay(self, env: Environment, episode=0):
         if self.memory.length() < self.batch_size:
-            #print(f"Replay skipped: Insufficient memory ({self.memory.length()}/{self.batch_size})")
+            # print(f"Replay skipped: Insufficient memory ({self.memory.length()}/{self.batch_size})")
             return None
 
-        #print(f"Starting replay for episode {episode}")
+        # print(f"Starting replay for episode {episode}")
         experiences, indices, weights = self.memory.sample(self.batch_size)
-        #print(f"Sampled {len(experiences)} experiences from memory")
+        # print(f"Sampled {len(experiences)} experiences from memory")
 
         losses = []
         for i, (state, action, reward, next_state, done) in enumerate(experiences):
@@ -222,22 +233,27 @@ class DQN:
                     target = reward
                 else:
                     # Use the main network to select the best action
-                    main_model_embs = self.model(next_state.x, next_state.edge_index)
+                    main_model_embs = self.model(
+                        next_state.x, next_state.edge_index)
                     next_q_values = self.get_qvals(next_state, main_model_embs)
                     best_action = torch.argmax(next_q_values).item()
-                    
+
                     # Use the target network to evaluate the value of the best action
-                    target_model_embs = self.target_model(next_state.x, next_state.edge_index)
-                    target_q_values = self.get_qvals(next_state, target_model_embs)
+                    target_model_embs = self.target_model(
+                        next_state.x, next_state.edge_index)
+                    target_q_values = self.get_qvals(
+                        next_state, target_model_embs)
                     target = reward + self.gamma * target_q_values[best_action]
 
                 # Compute Q-values for the current state
                 model_embs = self.model(state.x, state.edge_index)
                 q_values = self.get_qvals(state, model_embs)
+                # print(q_values) # brb
 
                 # Map action to a valid index
                 ghost_actions = env.get_ghost_action_set(data=state)
-                matching_rows = (ghost_actions == action).all(dim=1).nonzero(as_tuple=True)
+                matching_rows = (ghost_actions == action).all(
+                    dim=1).nonzero(as_tuple=True)
                 if matching_rows[0].numel() == 0:
                     continue
 
@@ -246,7 +262,8 @@ class DQN:
 
                 # Compute TD error and loss
                 td_error = target - q_values_current_action
-                self.memory.update_priorities([indices[i]], [np.abs(td_error.item())])
+                self.memory.update_priorities(
+                    [indices[i]], [np.abs(td_error.item())])
                 q_values[action_idx] = target
 
             # Train the model using Huber loss
@@ -255,10 +272,9 @@ class DQN:
 
         # Step the scheduler to decay the learning rate
         self.scheduler.step()
-        #print(f"Learning rate after step: {self.scheduler.get_last_lr()}")
+        # print(f"Learning rate after step: {self.scheduler.get_last_lr()}")
 
         return losses
-
 
     def load(self, name):
         # self.model = tf.keras.models.load_model(name)

@@ -25,7 +25,8 @@ config = {
 
     # Game settings
     "time_step_score": -0.1,          # Penalty for each time step
-    "win_score": 1.0,                  # Reward for catching Pac-Man (ghosts' perspective)
+    # Reward for catching Pac-Man (ghosts' perspective)
+    "win_score": 1.0,
     "loss_score": -1.0,                # Penalty if Pac-Man wins
     "distance_reward_scale": 0.1,      # Reward for reducing distance to Pac-Man
 
