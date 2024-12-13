@@ -18,11 +18,27 @@ import torch.nn.functional as F
 
 
 class DQN:
+    """
+    Implements the Deep Q-Learning algorithm using a Graph Neural Network (GNN) model.
+    """
     def __init__(self, state_shape, action_size, model, learning_rate_max=0.001, learning_rate_decay=0.995, gamma=0.75,
                  memory_size=2000, batch_size=32, exploration_max=1.0, exploration_min=0.01, exploration_decay=0.995):
-        # self.state_shape = state_shape
-        # self.state_tensor_shape = (-1,) + state_shape
-        # self.action_size = action_size
+        """
+        Initializes the DQN class.
+
+        Args:
+            state_shape (tuple): Shape of the graph-based state representation.
+            action_size (int): Number of possible actions.
+            model (torch.nn.Module): Neural network model for Q-value predictions.
+            learning_rate_max (float): Maximum learning rate.
+            learning_rate_decay (float): Decay factor for learning rate.
+            gamma (float): Discount factor for future rewards.
+            memory_size (int): Maximum size of the prioritized replay buffer.
+            batch_size (int): Number of samples for training in each replay step.
+            exploration_max (float): Initial exploration rate for epsilon-greedy policy.
+            exploration_min (float): Minimum exploration rate.
+            exploration_decay (float): Decay factor for exploration rate.
+        """
         self.learning_rate_max = learning_rate_max
         self.learning_rate = learning_rate_max
         self.learning_rate_decay = learning_rate_decay
@@ -40,20 +56,41 @@ class DQN:
         self.target_model = copy.deepcopy(self.model)
         self.update_target_model()
 
-        # self.loss_fn = torch.nn.MSELoss()
         self.optim = torch.optim.Adam(
             model.parameters(), lr=self.learning_rate, weight_decay=1e-5)
         self.scheduler = optim.lr_scheduler.ExponentialLR(
             self.optim, gamma=self.learning_rate_decay)
 
     def update_target_model(self):
+        """
+        Copies the weights of the policy network into the target network for stable Q-value estimation.
+        """
         self.target_model.load_state_dict(self.model.state_dict())
 
     def remember(self, state, action, reward, next_state, done):
+        """
+        Stores an experience tuple in the replay buffer.
+
+        Args:
+            state (Data): Current state of the environment as a graph.
+            action (torch.Tensor): Action taken in the current state.
+            reward (float): Reward received for the action.
+            next_state (Data): Resulting state after the action.
+            done (bool): Flag indicating whether the episode is over.
+        """
         self.memory.push((copy.deepcopy(state), action, reward,
                          copy.deepcopy(next_state), done))
 
     def random_act(self, env: Environment):
+        """
+        Selects a random action from the available action set.
+
+        Args:
+            env (Environment): Game environment.
+
+        Returns:
+            torch.Tensor: Random action selected.
+        """
         ghost_actions = env.get_ghost_action_set()
         random_action_idx = np.random.randint(len(ghost_actions))
         random_action = ghost_actions[random_action_idx]
@@ -61,13 +98,14 @@ class DQN:
 
     def act(self, env: Environment, epsilon=None):
         """
-        Selects an ghost action based on the current policy or explores randomly.
+        Selects an action using epsilon-greedy exploration.
 
         Args:
-            data: torch_geometric data object that contains graph information
-            epsilon (float, optional): Exploration rate. If None, uses self.exploration_rate.
+            env (Environment): Game environment.
+            epsilon (float, optional): Exploration rate. Uses self.exploration_rate if not provided.
+
         Returns:
-            int: Selected action.
+            torch.Tensor: Selected action.
         """
         data = env.get_state()
 
@@ -98,11 +136,18 @@ class DQN:
             return ghost_actions[best_act_idx]
 
     def get_qvals(self, state: Data, node_embs):
-        # The following logic is technically in the agent class, but we don't
-        # have access to that when calculating qvals. Thus, it's repeated here,
-        # which is probably not the best design
+        """
+        Computes Q-values for all possible actions.
+
+        Args:
+            state (Data): Current state of the environment.
+            node_embs (torch.Tensor): Node embeddings from the model.
+
+        Returns:
+            torch.Tensor: Q-values for all possible actions.
+        """
         neighbors = []
-        for i in range(config['num_ghosts']):  # TODO: vectorize this?
+        for i in range(config['num_ghosts']):  # Extract neighbors for each ghost
             pos = (state.x[:, config['ghosts_idx_start'] + i]
                    == 1).nonzero().item()
             mask = state.edge_index[0] == pos
@@ -119,60 +164,40 @@ class DQN:
             neighbor_embs = node_embs[possible_next_pos]
 
             # Calculate q_vals
-            # TODO: this is the dot product. Realistically, this all should
-            # go in the model class, since we should be able to switch out
-            # dot product aggregation with weighted dot product
             vals = torch.sum(cur_pos_emb * neighbor_embs,
                              dim=1)  # (num_neighbors,)
             q_vals += vals
         return q_vals
 
-    # TODO: this should be replaced with some naive policy (e.g., move away from
-    # ghosts)
     def pacman_act(self, env):
         """
-        Retrieves all possible next actions and selects one of them at random.
+        Selects a random valid action for Pac-Man.
+
+        Args:
+            env (Environment): Game environment.
+
+        Returns:
+            torch.Tensor: Action vector for Pac-Man.
         """
         pacman_action_set = env.get_pacman_action_set()
         pacman_action = pacman_action_set[torch.randint(
             len(pacman_action_set), (1,)).item()]
         return pacman_action
 
-    def pacman_heuristic_action(self, env):
-        # BUG
-        state = env.get_state()
-        edge_index = state.edge_index
-        pacman_position = env.pacman.get_pos(0)
-        ghost_positions = [env.ghosts.get_pos(
-            i) for i in range(env.num_ghosts)]
-
-        action_set = env.get_pacman_action_set()
-        if len(action_set) == 0:  # Handle empty action set
-            return torch.tensor([pacman_position])  # Stay in the same position
-
-        best_action = None
-        max_distance = -1
-
-        for action in action_set:
-            new_pos = action.item()
-            distances = [
-                torch.count_nonzero(
-                    edge_index[1] == ghost_pos) - torch.count_nonzero(edge_index[0] == pacman_position)
-                for ghost_pos in ghost_positions
-            ]
-            nearest_distance = min(distances)
-            if nearest_distance > max_distance:
-                max_distance = nearest_distance
-                best_action = action
-
-        return best_action
-
     def ghost_heuristic_action(self, env):
+        """
+        Selects actions for ghosts using a heuristic policy based on minimizing distance to Pac-Man.
+
+        Args:
+            env (Environment): Game environment.
+
+        Returns:
+            torch.Tensor: Action vectors for all ghosts based on the heuristic policy.
+        """
         state = env.get_state()
         edge_index = state.edge_index
         pacman_position = env.pacman.get_pos(0)
-        ghost_positions = [env.ghosts.get_pos(
-            i) for i in range(env.num_ghosts)]
+        ghost_positions = [env.ghosts.get_pos(i) for i in range(env.num_ghosts)]
 
         actions = []
         for ghost_idx, ghost_pos in enumerate(ghost_positions):
@@ -198,10 +223,17 @@ class DQN:
         return torch.tensor(actions)
 
     def train_model(self, env, state: Data, q_values):
-        # 20 is tunable parameter? Hard to judge whats happening in the real code
-        # Also, we can't really train on batches because the action set is not a
-        # constant size. (e.g., imaging ghosts are on the corner nodes, so they
-        # only have two neighbors)
+        """
+        Trains the model using a single batch of data.
+
+        Args:
+            env (Environment): Game environment.
+            state (Data): Current state of the environment as a graph.
+            q_values (torch.Tensor): Q-values to use as targets.
+
+        Returns:
+            float: Loss from the training step.
+        """
         loss = None
         for i in range(20):
             self.optim.zero_grad()
@@ -218,13 +250,20 @@ class DQN:
         return loss.item()  # should return last loss
 
     def replay(self, env: Environment, episode=0):
+        """
+        Samples a batch of experiences from the replay buffer and trains the model.
+
+        Args:
+            env (Environment): Game environment.
+            episode (int): Current training episode for logging purposes.
+
+        Returns:
+            list: Losses for each training step in the replay.
+        """
         if self.memory.length() < self.batch_size:
-            # print(f"Replay skipped: Insufficient memory ({self.memory.length()}/{self.batch_size})")
             return None
 
-        # print(f"Starting replay for episode {episode}")
         experiences, indices, weights = self.memory.sample(self.batch_size)
-        # print(f"Sampled {len(experiences)} experiences from memory")
 
         losses = []
         for i, (state, action, reward, next_state, done) in enumerate(experiences):
@@ -248,7 +287,6 @@ class DQN:
                 # Compute Q-values for the current state
                 model_embs = self.model(state.x, state.edge_index)
                 q_values = self.get_qvals(state, model_embs)
-                # print(q_values) # brb
 
                 # Map action to a valid index
                 ghost_actions = env.get_ghost_action_set(data=state)
@@ -272,15 +310,5 @@ class DQN:
 
         # Step the scheduler to decay the learning rate
         self.scheduler.step()
-        # print(f"Learning rate after step: {self.scheduler.get_last_lr()}")
 
         return losses
-
-    def load(self, name):
-        # self.model = tf.keras.models.load_model(name)
-        # self.target_model = tf.keras.models.load_model(name)
-        # TODO: replace with pytorch load functions
-        pass
-
-    def save(self, name):
-        self.model.save(name)
