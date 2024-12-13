@@ -1,3 +1,11 @@
+"""
+dqn.py
+Implements the Deep Q-Learning Network (DQN) to optimize ghost actions.
+- Maintains a target model for stability in Q-learning and a Prioritized Replay Buffer for sampling and replaying important experiences.
+- Predicts Q-values based on ghost positions and their neighbors in the graph.
+- Selects actions using an epsilon-greedy policy: random action for exploration, highest Q-value for exploitation.
+- Updates the model using the Temporal Difference (TD) error and trains with a loss function (MSELoss).
+"""
 import numpy as np
 import copy
 from replay_buffer import PrioritizedReplayBuffer
@@ -114,10 +122,70 @@ class DQN:
     # TODO: this should be replaced with some naive policy (e.g., move away from
     # ghosts)
     def pacman_act(self, env):
+        """
+        Retrieves all possible next actions and selects one of them at random.
+        """
         pacman_action_set = env.get_pacman_action_set()
         pacman_action = pacman_action_set[torch.randint(
             len(pacman_action_set), (1,)).item()]
         return pacman_action
+    
+    def pacman_heuristic_action(self, env):
+        # BUG
+        state = env.get_state()
+        edge_index = state.edge_index
+        pacman_position = env.pacman.get_pos(0)
+        ghost_positions = [env.ghosts.get_pos(i) for i in range(env.num_ghosts)]
+
+        action_set = env.get_pacman_action_set()
+        if len(action_set) == 0:  # Handle empty action set
+            return torch.tensor([pacman_position])  # Stay in the same position
+
+        best_action = None
+        max_distance = -1
+
+        for action in action_set:
+            new_pos = action.item()
+            distances = [
+                torch.count_nonzero(edge_index[1] == ghost_pos) - torch.count_nonzero(edge_index[0] == pacman_position)
+                for ghost_pos in ghost_positions
+            ]
+            nearest_distance = min(distances)
+            if nearest_distance > max_distance:
+                max_distance = nearest_distance
+                best_action = action
+
+        return best_action
+
+    def ghost_heuristic_action(self, env):
+        state = env.get_state()
+        edge_index = state.edge_index
+        pacman_position = env.pacman.get_pos(0)
+        ghost_positions = [env.ghosts.get_pos(i) for i in range(env.num_ghosts)]
+
+        actions = []
+        for ghost_idx, ghost_pos in enumerate(ghost_positions):
+            action_set = env.get_ghost_action_set()
+            if len(action_set) == 0:  # Handle empty action set
+                actions.append(ghost_pos)  # Stay in the same position
+                continue
+
+            best_action = None
+            min_distance = float('inf')
+
+            for action in action_set[:, ghost_idx]:
+                new_pos = action.item()
+                distance = torch.count_nonzero(edge_index[1] == new_pos) - torch.count_nonzero(
+                    edge_index[0] == pacman_position
+                )
+                if distance < min_distance:
+                    min_distance = distance
+                    best_action = new_pos
+
+            actions.append(best_action)
+
+        return torch.tensor(actions)
+
 
     def train_model(self, env, state: Data, q_values):
         # 20 is tunable parameter? Hard to judge whats happening in the real code

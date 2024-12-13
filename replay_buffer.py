@@ -1,5 +1,11 @@
-import numpy as np
+"""
+replay_buffer.py
+Implements a prioritized replay buffer to sample and store experiences.
+It stores experiences with associated priorities, samples batches based on probabilities proportional to priorities,
+and updates priorities using the Temporal Difference (TD) error.
+"""
 
+import numpy as np
 
 class PrioritizedReplayBuffer:
     def __init__(self, capacity, epsilon=1e-6, alpha=0.2, beta=0.4, beta_increment=0.001):

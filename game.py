@@ -1,3 +1,11 @@
+"""
+game.py
+Simulates the Pac-Man game environment.
+The game is represented as a graph with nodes for positions and edges for movements.
+Agents (Pac-Man and ghosts) are initialized with random or fixed spawn positions.
+The graph state is updated at each step, and it tracks rewards, game-over conditions, and collision detection (Pac-Man caught by ghosts).
+"""
+
 import torch
 from torch_geometric.data import Data
 from config import config
