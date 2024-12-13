@@ -16,6 +16,7 @@ import copy
 import random
 import numpy as np
 
+
 class Field:
     """
     Represents the state of the game as a graph.
@@ -40,7 +41,8 @@ class Field:
         )
 
         # Precompute distances between nodes in the graph
-        self.distance_matrix = self.precompute_distances(edge_index, config["num_nodes"])
+        self.distance_matrix = self.precompute_distances(
+            edge_index, config["num_nodes"])
 
         # Initialize positions
         for i in range(self.num_pacman):
@@ -77,17 +79,17 @@ class Field:
         for k in range(num_nodes):
             for i in range(num_nodes):
                 for j in range(num_nodes):
-                    distances[i][j] = min(distances[i][j], distances[i][k] + distances[k][j])
+                    distances[i][j] = min(
+                        distances[i][j], distances[i][k] + distances[k][j])
 
         return distances
-    
+
     def update_field(self, pacman_positions, ghost_positions):
         """
         Updates the graph attributes based on Pac-Man and Ghosts' positions.
         """
         self.graph.x[:, :] = 0  # Clear all positions
 
-        # TODO: Maybe we need to vectorize this
         for i, pos in enumerate(pacman_positions):
             self.graph.x[pos, i] = 1  # Update Pac-Man positions
 
@@ -108,7 +110,6 @@ class Agent:
         self.is_pacman = is_pacman
         self.num_agents = self.field.num_pacman if is_pacman else self.field.num_ghosts
         self.idx_start = self.field.pacman_idx_start if is_pacman else self.field.ghosts_idx_start
-
 
     def get_action_set(self, data: Data = None):
         """
@@ -137,6 +138,7 @@ class Agent:
         """
         self.action_vec = action_vec
 
+
 class RewardNormalizer:
     def __init__(self, alpha=0.1):
         self.mean = 0
@@ -146,10 +148,12 @@ class RewardNormalizer:
     def normalize(self, reward):
         # Update running mean and variance
         self.mean = self.alpha * reward + (1 - self.alpha) * self.mean
-        self.var = self.alpha * (reward - self.mean) ** 2 + (1 - self.alpha) * self.var
+        self.var = self.alpha * (reward - self.mean) ** 2 + \
+            (1 - self.alpha) * self.var
 
         # Normalize reward
         return (reward - self.mean) / (self.var ** 0.5 + 1e-8)
+
 
 class Environment:
     """
@@ -173,25 +177,6 @@ class Environment:
         # Game state variables
         self.reset()
 
-    # def reset(self):
-    #     """
-    #     Resets the environment to its initial state.
-    #     """
-    #     self.game_tick = 0
-    #     self.game_over = False
-    #     self.game_won = False
-    #     self.score = 0
-
-    #     # Reset agent positions
-    #     self.pacman.set_action(
-    #         self.pacman.field.pacman_spawn_pos[:self.num_pacman])
-    #     self.ghosts.set_action(
-    #         self.ghosts.field.ghosts_spawn_pos[:self.num_ghosts])
-
-    #     # Update the field to reflect initial positions
-    #     self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
-
-    #     return self.get_state()
     def reset(self):
         """
         Resets the environment to its initial state with all agents in different nodes on the grid.
@@ -231,7 +216,7 @@ class Environment:
         self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
 
         return self.get_state()
-    
+
     def get_state(self):
         """
         Returns the current state of the environment as a graph.
@@ -295,8 +280,10 @@ class Environment:
         # Loop through each ghost
         for ghost_idx, current_ghost_pos in enumerate(current_ghost_positions):
             # Distance before and after the move
-            distance_before = self.calculate_distance(previous_ghost_positions[ghost_idx], previous_pacman_position)
-            distance_after = self.calculate_distance(current_ghost_pos, current_pacman_position)
+            distance_before = self.calculate_distance(
+                previous_ghost_positions[ghost_idx], previous_pacman_position)
+            distance_after = self.calculate_distance(
+                current_ghost_pos, current_pacman_position)
 
             # Reward or penalize the ghost based on movement
             if distance_after <= distance_before:  # Ghost moved closer or same distance
@@ -309,11 +296,7 @@ class Environment:
             reward += config["win_score"]  # Big reward for capturing Pac-Man
             self.game_over = True
 
-        # Normalize reward
-        # normalized_reward = self.reward_normalizer.normalize(reward)
         return reward
-
-
 
     def step(self, pacman_action_vec, ghost_action_vec):
         """
@@ -364,7 +347,6 @@ class Environment:
         self.update_score(reward)
         return self.get_state(), reward, self.game_over, self.score
 
-
     def update_score(self, delta):
         """
         Updates the game score.
@@ -388,7 +370,6 @@ class Environment:
 
         for i in range(self.num_ghosts):
             print(f"Ghost #{i} Position: {self.ghosts.get_pos(i)}")
-
 
     def create_animation(self, graph_states):
         """
@@ -415,38 +396,30 @@ class Environment:
                 graph.add_edge(edge[0], edge[1])
 
             # Draw the graph with fixed positions
-            nx.draw(graph, pos, ax=ax, with_labels=True, node_size=500, node_color="lightblue", font_weight="bold")
+            nx.draw(graph, pos, ax=ax, with_labels=True, node_size=500,
+                    node_color="lightblue", font_weight="bold")
 
             # Highlight Pac-Man positions
-            nx.draw_networkx_nodes(graph, pos, nodelist=state["pacman_positions"], node_color="yellow", ax=ax)
+            nx.draw_networkx_nodes(
+                graph, pos, nodelist=state["pacman_positions"], node_color="yellow", ax=ax)
 
             # Highlight Ghost positions
-            nx.draw_networkx_nodes(graph, pos, nodelist=state["ghost_positions"], node_color="red", ax=ax)
+            nx.draw_networkx_nodes(
+                graph, pos, nodelist=state["ghost_positions"], node_color="red", ax=ax)
 
             # Add a title
             gameNumber = state["episode"]
-            ax.set_title(f"Graph State: Frame {frame + 1}, Game # {gameNumber}")
+            ax.set_title(
+                f"Graph State: Frame {frame + 1}, Game # {gameNumber}")
 
         # Create the animation
-        anim = FuncAnimation(fig, update, frames=len(graph_states), interval=500, repeat=False)
+        anim = FuncAnimation(fig, update, frames=len(
+            graph_states), interval=500, repeat=False)
         return anim
 
 
 def main():
     # Code to test the environment
-    # env = Environment()
-    # env.dump()
-    # pacman_AS = env.get_pacman_action_set()
-    # ghost_AS = env.get_ghost_action_set()
-    # print(pacman_AS)
-    # print(ghost_AS)
-    # pacman_action_vec = pacman_AS[0]
-    # ghost_action_vec = ghost_AS[1]
-    # print(f'P ACT = {pacman_action_vec}')
-    # print(f'G ACT = {ghost_action_vec}')
-    # env.step(pacman_action_vec, ghost_action_vec)
-    # env.dump()
-
     env = Environment()
     num_tests = 10
     for test in range(num_tests):
@@ -454,8 +427,10 @@ def main():
         env.reset()
 
         # Get Pac-Man and Ghost positions
-        pacman_positions = [env.pacman.get_pos(i) for i in range(env.num_pacman)]
-        ghost_positions = [env.ghosts.get_pos(i) for i in range(env.num_ghosts)]
+        pacman_positions = [env.pacman.get_pos(
+            i) for i in range(env.num_pacman)]
+        ghost_positions = [env.ghosts.get_pos(
+            i) for i in range(env.num_ghosts)]
 
         print("positions: ", pacman_positions + ghost_positions)
 
