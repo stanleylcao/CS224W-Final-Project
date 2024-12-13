@@ -52,7 +52,7 @@ config = {
     "exploration_decay": 0.995,
 
     # Model settings
-    "gnn_type": "GCN",  # Options are "GAT", "GraphSage", or "GCN"
+    "gnn_type": "GraphSage",  # Options are "GAT", "GraphSage", or "GCN"
     "input_dim": 3,
     "hidden_dim": 128,
     # Note that this isn't the action set, but rather the final node embeddings

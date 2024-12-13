@@ -12,12 +12,12 @@ class GraphSAGE(MessagePassing):
     GraphSAGE layer that computes embeddings for graph nodes using neighborhood aggregation.
     """
 
-    def __init__(self, normalize=True, bias=True, **kwargs):
+    def __init__(self, input_dim, output_dim, normalize=True, bias=True, **kwargs):
         # Aggregates messages using 'mean'
         super(GraphSAGE, self).__init__(aggr='mean', **kwargs)
 
-        self.in_channels = config["input_dim"]
-        self.out_channels = config["output_dim"]
+        self.in_channels = input_dim
+        self.out_channels = output_dim
         self.normalize = normalize
 
         # Linear transformations for the node's own features and aggregated neighborhood features
@@ -74,8 +74,12 @@ class GraphSAGEModel(nn.Module):
     A multi-layer GraphSAGE model for node-level embeddings or graph-level tasks.
     """
 
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers=2, normalize=True, dropout=0.1):
+    def __init__(self, num_layers=2, normalize=True, dropout=0.1):
         super(GraphSAGEModel, self).__init__()
+
+        input_dim = config["input_dim"]
+        hidden_dim = config["hidden_dim"]
+        output_dim = config["output_dim"]
 
         assert num_layers >= 1, "GraphSAGEModel requires at least one layer."
 

@@ -14,7 +14,7 @@ Runs the training loop, evaluates performance, and visualizes results.
 import torch
 from models.gcn import GCN
 from models.gat import GATModel
-from models.graphSAGE import GraphSAGE
+from models.graphSAGE import GraphSAGEModel
 from game import Environment
 from dqn import DQN
 from config import config
@@ -35,7 +35,7 @@ def sim_random(num_episodes):
         state = copy.deepcopy(state)
         total_reward = 0
         done = False
-
+        print(f'EPS = {episode}')
         for step in range(max_steps):
             # Select actions
             pacman_action_set = env.get_pacman_action_set()
@@ -107,7 +107,7 @@ def main():
     elif config["gnn_type"] == "GAT":
         model = GATModel()
     elif config["gnn_type"] == "GraphSage":
-        model = GraphSAGE()
+        model = GraphSAGEModel()
     else:
         raise ValueError(f"Unsupported GNN type: {config['gnn_type']}")
 

@@ -203,7 +203,7 @@ class DQN:
         # constant size. (e.g., imaging ghosts are on the corner nodes, so they
         # only have two neighbors)
         loss = None
-        for i in range(1):
+        for i in range(20):
             self.optim.zero_grad()
             model_embs = self.model(state.x, state.edge_index)
             pred_q_vals = self.get_qvals(state, model_embs)
