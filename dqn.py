@@ -6,6 +6,7 @@ from torch_geometric.data import Data
 from game import Environment
 from config import config
 import torch.optim as optim
+import torch.nn.functional as F
 
 
 class DQN:
@@ -31,9 +32,9 @@ class DQN:
         self.target_model = copy.deepcopy(self.model)
         self.update_target_model()
 
-        self.loss_fn = torch.nn.MSELoss()
+        #self.loss_fn = torch.nn.MSELoss()
         self.optim = torch.optim.Adam(
-            model.parameters(), lr=self.learning_rate)
+            model.parameters(), lr=self.learning_rate, weight_decay=1e-5)
         self.scheduler = optim.lr_scheduler.ExponentialLR(self.optim, gamma=self.learning_rate_decay)
 
     def update_target_model(self):
@@ -72,6 +73,7 @@ class DQN:
             # Forward pass through the model
             self.model.eval()  # set model to eval mode
             node_embs = self.model(node_features, edge_index)  # (V, out_d)
+            #print("node_embs: ", node_embs)
             ghost_actions = env.get_ghost_action_set()
 
             q_vals = self.get_qvals(data, node_embs)
@@ -123,22 +125,27 @@ class DQN:
         # constant size. (e.g., imaging ghosts are on the corner nodes, so they
         # only have two neighbors)
         loss = None
-        for i in range(20):
+        for i in range(1):
             self.optim.zero_grad()
             model_embs = self.model(state.x, state.edge_index)
             pred_q_vals = self.get_qvals(state, model_embs)
-            loss = self.loss_fn(pred_q_vals, q_values)
+            # Huber loss
+            loss = F.smooth_l1_loss(pred_q_vals, q_values)
             loss.backward()
             # Clip gradients to avoid exploding gradients
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
             self.optim.step()
+
         return loss.item()  # should return last loss
 
     def replay(self, env: Environment, episode=0):
         if self.memory.length() < self.batch_size:
+            #print(f"Replay skipped: Insufficient memory ({self.memory.length()}/{self.batch_size})")
             return None
+
+        #print(f"Starting replay for episode {episode}")
         experiences, indices, weights = self.memory.sample(self.batch_size)
-        # unpacked_experiences = list(zip(*experiences))
+        #print(f"Sampled {len(experiences)} experiences from memory")
 
         losses = []
         for i, (state, action, reward, next_state, done) in enumerate(experiences):
@@ -146,47 +153,44 @@ class DQN:
                 if done:
                     target = reward
                 else:
-                    # Compute Q-values for the next state
+                    # Use the main network to select the best action
+                    main_model_embs = self.model(next_state.x, next_state.edge_index)
+                    next_q_values = self.get_qvals(next_state, main_model_embs)
+                    best_action = torch.argmax(next_q_values).item()
+                    
+                    # Use the target network to evaluate the value of the best action
                     target_model_embs = self.target_model(next_state.x, next_state.edge_index)
                     target_q_values = self.get_qvals(next_state, target_model_embs)
-                    max_target_q_values = torch.max(target_q_values)
-                    target = reward + self.gamma * max_target_q_values
+                    target = reward + self.gamma * target_q_values[best_action]
 
                 # Compute Q-values for the current state
                 model_embs = self.model(state.x, state.edge_index)
                 q_values = self.get_qvals(state, model_embs)
 
                 # Map action to a valid index
-                ghost_actions = env.get_ghost_action_set(data = state)
-
-                #print(f"Action: {action.tolist()}, Type: {type(action)}, Shape: {action.shape}")
-                #print(f"Ghost Actions: {ghost_actions.tolist()}, Type: {type(ghost_actions)}, Shape: {ghost_actions.shape}")
-
-                # TODO: this is a temporary fix -- need to figure out why some games initialize on a terminal state
+                ghost_actions = env.get_ghost_action_set(data=state)
                 matching_rows = (ghost_actions == action).all(dim=1).nonzero(as_tuple=True)
                 if matching_rows[0].numel() == 0:
-                    print(f"Skipping invalid action {action.tolist()} not found in {ghost_actions.tolist()}")
                     continue
 
-                action_idx = (ghost_actions == action).all(dim=1).nonzero(as_tuple=True)[0].item()
-                # print(f"Action Index: {action_idx}")  # Debugging
-
+                action_idx = matching_rows[0].item()
                 q_values_current_action = q_values[action_idx]
 
-                # Compute TD error
+                # Compute TD error and loss
                 td_error = target - q_values_current_action
                 self.memory.update_priorities([indices[i]], [np.abs(td_error.item())])
-
-                # Update Q-values for learning
                 q_values[action_idx] = target
 
+            # Train the model using Huber loss
             loss = self.train_model(env, state, q_values)
             losses.append(loss)
 
         # Step the scheduler to decay the learning rate
         self.scheduler.step()
+        #print(f"Learning rate after step: {self.scheduler.get_last_lr()}")
 
         return losses
+
 
     def load(self, name):
         # self.model = tf.keras.models.load_model(name)

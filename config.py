@@ -3,8 +3,8 @@ import torch
 config = {
     # General settings
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "num_episodes": 1000,
-    "max_steps": 50,
+    "num_episodes": 500,
+    "max_steps": 15,
 
     # Environment settings
     "num_pacman": 1,
@@ -15,7 +15,7 @@ config = {
     "ghosts_idx_start": 1,
 
     # Game settings
-    "time_step_score": -0.01,          # Penalty for each time step
+    "time_step_score": -0.1,          # Penalty for each time step
     "win_score": 1.0,                  # Reward for catching Pac-Man (ghosts' perspective)
     "loss_score": -1.0,                # Penalty if Pac-Man wins
     "distance_reward_scale": 0.1,      # Reward for reducing distance to Pac-Man
@@ -34,15 +34,15 @@ config = {
     "action_size": 4,
     "learning_rate_max": 0.001,
     "learning_rate_decay": 0.995,
-    "gamma": 0.95,
+    "gamma": 0.85,
     "memory_size": 2000,
     "batch_size": 32,
-    "exploration_max": 1.2,
-    "exploration_min": 0.01,
-    "exploration_decay": 0.999,
+    "exploration_max": 0.8,
+    "exploration_min": 0.1,
+    "exploration_decay": 0.995,
 
     # Model settings
-    "gnn_type": "GraphSage",  # Options are "GAT", "GraphSage", or "GCN"
+    "gnn_type": "GAT",  # Options are "GAT", "GraphSage", or "GCN"
     "input_dim": 3,
     "hidden_dim": 128,
     # Note that this isn't the action set, but rather the final node embeddings
@@ -51,5 +51,5 @@ config = {
     "heads": 2,
     "dropout": 0.0,
     "negative_slope": 0.2,
-    "target_update_freq": 10,  # Frequency of target network updates
+    "target_update_freq": 5,  # Frequency of target network updates
 }

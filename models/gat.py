@@ -13,14 +13,16 @@ class GAT(MessagePassing):
     A single Graph Attention Network (GAT) layer using multi-head attention.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, in_channels, out_channels, heads, dropout, **kwargs):
         super().__init__(node_dim=0, aggr='add', **kwargs)
 
-        self.in_channels = config["input_dim"]
-        self.out_channels = config["output_dim"]
-        self.heads = config["heads"]
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.heads = heads
+        self.dropout = dropout
+
+
         self.negative_slope = config["negative_slope"]
-        self.dropout = config["dropout"]
 
         # Linear transformations for node embeddings
         self.lin_l = nn.Linear(self.in_channels, self.heads * self.out_channels, bias=False)
@@ -98,8 +100,12 @@ class GATModel(nn.Module):
     Outputs Q-values (`output_dim` == )
     """
 
-    def __init__(self, input_dim, hidden_dim, output_dim, num_heads=2, num_layers=2, dropout=0.1):
+    def __init__(self, num_heads=2, num_layers=2, dropout=0.1):
         super().__init__()
+
+        input_dim = config["input_dim"]
+        hidden_dim = config["hidden_dim"]
+        output_dim = config["output_dim"]
 
         assert num_layers >= 1, "GATModel requires at least one layer."
 

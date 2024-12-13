@@ -47,14 +47,15 @@ class GCN(torch.nn.Module):
         Returns:
             Tensor: Node-level embeddings or classification output.
         """
+        
         # Apply GCN layers with ReLU, BatchNorm, and Dropout
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index)
             if i < len(self.bns):  # BatchNorm is applied to all but the last layer
                 x = self.bns[i](x)
-                x = F.relu(x)
                 x = F.dropout(x, p=self.dropout, training=self.training)
-        
+                x = F.relu(x)
+
         # Final layer (classification or output embeddings)
         out = self.final_layer(x, edge_index)
         if not self.return_embeds:

@@ -1,6 +1,6 @@
 import torch
 from models.gcn import GCN
-from models.gat import GAT
+from models.gat import GATModel
 from models.graphSAGE import GraphSAGE
 from game import Environment
 from dqn import DQN
@@ -19,7 +19,7 @@ def main():
     if config["gnn_type"] == "GCN":
         model = GCN()
     elif config["gnn_type"] == "GAT":
-        model = GAT()
+        model = GATModel()
     elif config["gnn_type"] == "GraphSage":
         model = GraphSAGE()
     else:
@@ -59,7 +59,6 @@ def main():
         state = copy.deepcopy(state)
         total_reward = 0
         done = False
-        steps = 0  # Track the number of steps in the episode
 
         for step in range(max_steps):
             # Select actions
@@ -83,14 +82,10 @@ def main():
 
             # Accumulate reward
             total_reward += reward
-            steps += 1
 
             # Break if game ends
             if done:
                 break
-
-        # Calculate the average reward for the episode
-        average_reward = total_reward / steps if steps > 0 else 0
 
         # Train the model after collecting enough experiences
         if dqn.memory.length() >= 5 * dqn.batch_size:
@@ -105,21 +100,21 @@ def main():
         dqn.exploration_rate = max(dqn.exploration_min, dqn.exploration_rate * dqn.exploration_decay)
 
         # Log rewards
-        all_rewards.append(average_reward)
+        all_rewards.append(reward)
         if episode % 10 == 0:
-            print(f"Episode {episode}/{num_episodes} - Average Reward: {average_reward:.2f}")
+            print(f"Episode {episode}/{num_episodes} - Reward: {reward:.2f}")
 
     # --- Save Animation ---
-    # print("Creating animation...")
-    # last_5_episodes = list(range(num_episodes - 5, num_episodes))
-    # # Filter graph_states to include only the last 5 episodes
-    # last_5_graph_states = [
-    #     gs for gs in graph_states if gs["episode"] in last_5_episodes
-    # ]
-    # # Create the animation with the filtered states
-    # anim = env.create_animation(last_5_graph_states)
-    # anim.save("graph_animation.gif", writer="pillow")
-    # print("Animation saved.")
+    print("Creating animation...")
+    last_5_episodes = list(range(num_episodes - 5, num_episodes))
+    # Filter graph_states to include only the last 5 episodes
+    last_5_graph_states = [
+        gs for gs in graph_states if gs["episode"] in last_5_episodes
+    ]
+    # Create the animation with the filtered states
+    anim = env.create_animation(last_5_graph_states)
+    anim.save("graph_animation.gif", writer="pillow")
+    print("Animation saved.")
 
     # --- Plot the Losses ---
     plt.figure(figsize=(12, 6))

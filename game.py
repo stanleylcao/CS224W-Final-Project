@@ -291,19 +291,19 @@ class Environment:
             distance_after = self.calculate_distance(current_ghost_pos, current_pacman_position)
 
             # Reward or penalize the ghost based on movement
-            if distance_after < distance_before:  # Ghost moved closer
+            if distance_after <= distance_before:  # Ghost moved closer or same distance
                 reward += config["distance_reward_scale"]
             elif distance_after > distance_before:  # Ghost moved farther
                 reward -= config["distance_reward_scale"]
 
         # Collision: If any ghost catches Pac-Man
         if current_pacman_position in current_ghost_positions:  # Collision detected
-            reward += config["win_score"]  # Big reward for capturing Pac-Man
+            reward = config["win_score"]  # Big reward for capturing Pac-Man
             self.game_over = True
 
         # Normalize reward
-        normalized_reward = self.reward_normalizer.normalize(reward)
-        return normalized_reward
+        # normalized_reward = self.reward_normalizer.normalize(reward)
+        return reward
 
 
 
@@ -330,6 +330,10 @@ class Environment:
         self.ghosts.set_action(ghost_action_vec)
         self.field.update_field(self.pacman.action_vec, self.ghosts.action_vec)
 
+        # Get current positions
+        current_pacman_positions = set(self.pacman.action_vec.tolist())
+        current_ghost_positions = set(self.ghosts.action_vec.tolist())
+
         # Calculate reward using previous and new positions
         reward = self.calculate_reward(
             previous_pacman_positions, previous_ghost_positions,
@@ -338,12 +342,19 @@ class Environment:
 
         # Check game-over conditions
         if self.game_tick >= config["max_steps"] or self.score <= config["loss_score"]:
+            reward = config["loss_score"]
             self.game_over = True
+        # Check for crossings (switching nodes)
+        for pacman_prev, pacman_curr in zip(previous_pacman_positions, current_pacman_positions):
+            for ghost_prev, ghost_curr in zip(previous_ghost_positions, current_ghost_positions):
+                if pacman_prev == ghost_curr and pacman_curr == ghost_prev:
+                    self.game_over = True
+                    reward = config["win_score"]
+                    break
 
         # Update score
         self.update_score(reward)
-
-        return self.get_state(), reward, self.game_over or self.game_won, self.score
+        return self.get_state(), reward, self.game_over, self.score
 
 
     def update_score(self, delta):
